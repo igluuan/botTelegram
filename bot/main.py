@@ -34,6 +34,8 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
 )
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 
 async def on_error(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -48,10 +50,7 @@ async def on_error(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
             return
 
 
-async def main() -> None:
-    settings = get_settings(strict=True)
-    await init_db(db_path=settings.database_path)
-
+def build_app(*, settings) -> Application:
     app = Application.builder().token(settings.bot_token).build()
 
     app.add_handler(CommandHandler("start", show_main_menu))
@@ -85,11 +84,18 @@ async def main() -> None:
     app.add_handler(conv)
 
     app.add_error_handler(on_error)
+    return app
+
+def main() -> None:
+    settings = get_settings(strict=True)
+    asyncio.run(init_db(db_path=settings.database_path))
+
+    app = build_app(settings=settings)
 
     logging.getLogger(__name__).info("Bot iniciado")
-    await app.run_polling(allowed_updates=Update.ALL_TYPES)
+    asyncio.set_event_loop(asyncio.new_event_loop())
+    app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
-
+    main()

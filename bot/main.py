@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from logging.handlers import RotatingFileHandler
 
 from telegram import Update
 from telegram.ext import (
@@ -27,12 +28,32 @@ from bot.handlers.admin import (
     delete_item,
     list_all,
 )
-from bot.handlers.user import search, send_item, show_categories, show_items, show_main_menu
+from bot.handlers.user import (
+    handle_pending_category_search,
+    noop,
+    search,
+    search_by_category_command,
+    search_pagination,
+    send_item,
+    show_categories,
+    show_favorites,
+    show_items,
+    show_main_menu,
+    show_recentes,
+    start_category_search,
+    toggle_favorite,
+)
 
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    handlers=[
+        logging.StreamHandler(),
+        RotatingFileHandler(
+            "bot.log", maxBytes=5 * 1024 * 1024, backupCount=2, encoding="utf-8"
+        ),
+    ],
 )
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
@@ -55,15 +76,29 @@ def build_app(*, settings) -> Application:
 
     app.add_handler(CommandHandler("start", show_main_menu))
     app.add_handler(CommandHandler("buscar", search))
+    app.add_handler(CommandHandler("buscarcat", search_by_category_command))
 
     app.add_handler(CallbackQueryHandler(show_main_menu, pattern="^back_main$"))
     app.add_handler(
-        CallbackQueryHandler(show_categories, pattern="^(categorias|back_categories)$")
+        CallbackQueryHandler(
+            show_categories, pattern=r"^(categorias|categorias_\d+|back_categories)$"
+        )
     )
     app.add_handler(
-        CallbackQueryHandler(show_items, pattern=r"^(cat_|back_cat_)\d+$")
+        CallbackQueryHandler(
+            show_items, pattern=r"^(cat_\d+|cat_\d+_\d+|back_cat_\d+)$"
+        )
     )
     app.add_handler(CallbackQueryHandler(send_item, pattern=r"^item_\d+$"))
+    app.add_handler(CallbackQueryHandler(search_pagination, pattern=r"^buscar_\d+$"))
+    app.add_handler(CallbackQueryHandler(show_favorites, pattern=r"^favoritos_\d+$"))
+    app.add_handler(CallbackQueryHandler(show_recentes, pattern=r"^recentes_\d+$"))
+    app.add_handler(CallbackQueryHandler(start_category_search, pattern=r"^buscarcat_\d+$"))
+    app.add_handler(CallbackQueryHandler(toggle_favorite, pattern=r"^(fav|unfav)_\d+$"))
+    app.add_handler(CallbackQueryHandler(noop, pattern=r"^noop$"))
+    app.add_handler(
+        MessageHandler(filters.TEXT & ~filters.COMMAND, handle_pending_category_search)
+    )
 
     app.add_handler(CommandHandler("admin", admin_panel))
     app.add_handler(CommandHandler("addcategoria", add_category))

@@ -7,3 +7,5 @@ venv/
 .ruff_cache/
 *.pyc
 
+bot.log
+implementação_yt.md

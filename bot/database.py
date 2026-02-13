@@ -163,6 +163,23 @@ async def get_category(*, category_id: int, db_path: str | None = None) -> Categ
         return Category.from_row(row) if row else None
 
 
+async def get_category_by_name(
+    *, name: str, db_path: str | None = None
+) -> Category | None:
+    settings = get_settings()
+    resolved = db_path or settings.database_path
+    normalized = name.strip()
+    if not normalized:
+        return None
+    async with _connect(resolved) as conn:
+        cur = await conn.execute(
+            "SELECT id, name, emoji FROM categories WHERE LOWER(name) = LOWER(?)",
+            (normalized,),
+        )
+        row = await cur.fetchone()
+        return Category.from_row(row) if row else None
+
+
 async def delete_category(*, category_id: int, db_path: str | None = None) -> bool:
     settings = get_settings()
     resolved = db_path or settings.database_path
@@ -216,6 +233,20 @@ async def create_file_item(
         return int(cur.lastrowid)
 
 
+async def update_item_telegram_message_id(
+    *, item_id: int, telegram_message_id: int, db_path: str | None = None
+) -> bool:
+    settings = get_settings()
+    resolved = db_path or settings.database_path
+    async with _connect(resolved) as conn:
+        cur = await conn.execute(
+            "UPDATE items SET telegram_message_id = ? WHERE id = ?",
+            (telegram_message_id, item_id),
+        )
+        await conn.commit()
+        return cur.rowcount > 0
+
+
 async def list_items_by_category(
     *, category_id: int, page: int = 1, limit: int = 10, db_path: str | None = None
 ) -> list[Item]:
@@ -261,6 +292,25 @@ async def get_item(*, item_id: int, db_path: str | None = None) -> Item | None:
             WHERE id = ?
             """,
             (item_id,),
+        )
+        row = await cur.fetchone()
+        return Item.from_row(row) if row else None
+
+
+async def get_item_by_url(*, url: str, db_path: str | None = None) -> Item | None:
+    settings = get_settings()
+    resolved = db_path or settings.database_path
+    normalized = url.strip()
+    if not normalized:
+        return None
+    async with _connect(resolved) as conn:
+        cur = await conn.execute(
+            """
+            SELECT id, category_id, title, type, telegram_message_id, url, description
+            FROM items
+            WHERE url = ?
+            """,
+            (normalized,),
         )
         row = await cur.fetchone()
         return Item.from_row(row) if row else None

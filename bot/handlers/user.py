@@ -14,36 +14,7 @@ from bot.keyboards import (
     main_menu,
     paginated_items_menu,
 )
-from bot.utils import parse_positive_int
-
-
-def _truncate(text: str, limit: int = 60) -> str:
-    normalized = " ".join(text.strip().split())
-    if len(normalized) <= limit:
-        return normalized
-    return normalized[: max(limit - 1, 1)].rstrip() + "…"
-
-
-def _item_line(item) -> str:
-    prefix = "📎" if item.type == "file" else "🔗"
-    description = (item.description or "").strip()
-    if description:
-        snippet = _truncate(description, 60)
-        return f"{prefix} {item.title} — {snippet}"
-    return f"{prefix} {item.title}"
-
-
-def _items_overview(items) -> list[str]:
-    return [_item_line(item) for item in items]
-
-
-def _build_item_body(item) -> str:
-    prefix = "📎" if item.type == "file" else "🔗"
-    description = (item.description or "").strip()
-    body = f"{prefix} <b>{item.title}</b>"
-    if description:
-        body += f"\n\n{description}"
-    return body
+from bot.utils import build_item_body, items_overview, parse_positive_int
 
 
 async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -161,7 +132,7 @@ async def show_items(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     total_pages_display = max(total_pages, 1)
     context.user_data["last_back_data"] = f"cat_{category_id}_{page}"
     lines = [f"📁 {category.emoji} {category.name}", f"Itens: {total_count}", ""]
-    lines.extend(_items_overview(items))
+    lines.extend(items_overview(items))
     lines.extend(["", "Selecione um item:"])
     await update.callback_query.edit_message_text(
         "\n".join(lines),
@@ -208,7 +179,7 @@ async def send_item(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         is_favorite = await database.is_favorite(user_id=user_id, item_id=item.id)
 
     if item.type == "link":
-        body = _build_item_body(item)
+        body = build_item_body(item)
         await update.callback_query.edit_message_text(
             body,
             reply_markup=item_actions_menu(
@@ -244,7 +215,7 @@ async def send_item(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         )
         return
 
-    body = _build_item_body(item)
+    body = build_item_body(item)
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
         text=body,
@@ -287,7 +258,7 @@ async def _render_search_results_message(
         lines.append(f"Página: {page}/{total_pages_display}")
     lines.append("")
     if items:
-        lines.extend(_items_overview(items))
+        lines.extend(items_overview(items))
         lines.extend(["", "Toque em um item para abrir:"])
     else:
         lines.append("📭 Nenhum resultado encontrado.")
@@ -494,7 +465,7 @@ async def show_favorites(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         lines.append(f"Página: {page}/{total_pages_display}")
     lines.append("")
     if items:
-        lines.extend(_items_overview(items))
+        lines.extend(items_overview(items))
         lines.extend(["", "Toque em um item para abrir:"])
     else:
         lines.append("📭 Você ainda não tem favoritos.")
@@ -546,7 +517,7 @@ async def show_recentes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         lines.append(f"Página: {page}/{total_pages_display}")
     lines.append("")
     if items:
-        lines.extend(_items_overview(items))
+        lines.extend(items_overview(items))
         lines.extend(["", "Toque em um item para abrir:"])
     else:
         lines.append("📭 Você ainda não abriu nenhum item.")
@@ -599,7 +570,7 @@ async def toggle_favorite(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         return
     is_favorite = await database.is_favorite(user_id=user_id, item_id=item_id)
     back_data = context.user_data.get("last_back_data") or f"back_cat_{item.category_id}"
-    body = _build_item_body(item)
+    body = build_item_body(item)
     await update.callback_query.edit_message_text(
         body,
         reply_markup=item_actions_menu(

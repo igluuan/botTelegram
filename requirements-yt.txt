@@ -1,0 +1,2 @@
+google-api-python-client==2.160.0
+anthropic==0.43.0

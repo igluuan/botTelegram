@@ -1,0 +1,13 @@
+{
+  "equipamentos": [
+    "Kyocera",
+    "Brother"
+  ],
+  "topicos": [
+    "Reset",
+    "Cota",
+    "Configuração",
+    "Diagnóstico",
+    "Manutenção"
+  ]
+}

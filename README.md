@@ -2,6 +2,14 @@
 
 Bot Telegram em Python para cadastrar arquivos e links por categoria (admin) e permitir que usuários naveguem por menus inline para receber conteúdo no chat.
 
+## Visão Geral
+
+- Categorias com emoji e paginação
+- Itens do tipo arquivo (armazenados em um canal privado) e link
+- Busca por título (global) e busca dentro de uma categoria
+- Favoritos por usuário e histórico de itens acessados
+- Menus inline com navegação intuitiva
+
 ## Requisitos
 
 - Python 3.11+
@@ -16,12 +24,9 @@ Bot Telegram em Python para cadastrar arquivos e links por categoria (admin) e p
 - `ADMIN_ID`: seu `user_id` no Telegram
 - `STORAGE_CHANNEL_ID`: id do canal privado (ex.: `-100...`)
 - `DATABASE_PATH`: caminho do SQLite (padrão `bot.db`)
-- `YOUTUBE_API_KEY`: chave da YouTube Data API v3
-- `YOUTUBE_CHANNEL_ID`: id do canal do YouTube (formato `UC...`)
-- `ANTHROPIC_API_KEY`: chave da API Anthropic (Claude)
-Aceita também:
-- `API_YT` como alternativa a `YOUTUBE_API_KEY`
-- `CHANNEL_ID_YT` como alternativa a `YOUTUBE_CHANNEL_ID`
+- `YOUTUBE_API_KEY`: chave da API do YouTube
+- `YOUTUBE_CHANNEL_ID`: id do canal do YouTube
+- `ANTHROPIC_API_KEY`: chave da API do Anthropic
 
 2. Instale dependências:
 
@@ -35,83 +40,44 @@ python -m pip install -r requirements.txt
 python -m bot.main
 ```
 
-## Importação YouTube (Fases 1 a 3.3)
+Observações:
+- O bot exige BOT_TOKEN, ADMIN_ID e STORAGE_CHANNEL_ID configurados (validação em runtime).
+- O banco SQLite é criado/atualizado automaticamente no primeiro start.
+- Logs são gravados em `bot.log` com rotação.
 
-1. Instale dependências adicionais:
-
-```bash
-python -m pip install -r requirements-yt.txt
-```
-
-2. Exporte todos os vídeos para CSV:
-
-```bash
-python -m scripts.youtube_export --channel-id UCxxxxxxxxxxxxxxxx
-```
-
-Isso gera `videos.csv`.
-
-3. Crie seu arquivo de categorias:
-
-```bash
-copy categorias.json.example categorias.json
-```
-
-Edite `categorias.json` com equipamentos e tópicos válidos.
-
-4. Categorize com IA e gere `videos_cat.csv`:
-
-```bash
-python -m scripts.youtube_categorize --categories categorias.json
-```
-
-5. Revise no Google Sheets:
-
-- Importe `videos_cat.csv`
-- Filtre por equipamento e ajuste os outliers
-
-### Modo seguro (baixo risco de custo)
-
-- Exportar só uma amostra:
-
-```bash
-python -m scripts.youtube_export --channel-id UCxxxxxxxxxxxxxxxx --max-pages 1 --limit 10
-```
-
-- Categorizar só alguns itens:
-
-```bash
-python -m scripts.youtube_categorize --categories categorias.json --limit 5
-```
-
-- Dry-run sem chamar a IA:
-
-```bash
-python -m scripts.youtube_categorize --categories categorias.json --limit 20 --dry-run
-```
-
-### Controle de custos
-
-- YouTube API: limite quotas no Google Cloud Console do projeto.
-- Anthropic: configure limites de gasto no painel da Anthropic e use `--limit` para testes.
-
-## Uso
+## Uso (Comandos)
 
 ### Usuários
 
 - `/start`: abre o menu principal
 - Navegue por categorias e itens via botões
 - `/buscar <termo>`: busca por título
+- `/buscarcat <categoria_id> <termo>`: busca por título dentro de uma categoria
 
 ### Administrador
 
-- `/admin`: painel
-- `/addcategoria <emoji> <nome>`
-- `/addlink <categoria_id> <título> <url> [descrição]`
-- `/addfile <categoria_id> <título> [descrição]` (o bot pedirá o envio do arquivo em seguida)
-- `/listar`
-- `/deletar <item_id>`
-- `/deletarcategoria <categoria_id>`
+- `/admin`: painel com resumo dos comandos
+- `/addcategoria <emoji> <nome>`: cria categoria (emoji opcional; padrão 📁)
+- `/addlink <categoria_id> <título> <url> [descrição]`: cadastra um link
+- `/addfile <categoria_id> <título> [descrição]`: inicia cadastro de arquivo
+  - Após esse comando, envie o arquivo no chat com o bot; ele será encaminhado para o canal definido em `STORAGE_CHANNEL_ID` e vinculado ao item
+- `/listar`: lista categorias com contagem de itens
+- `/deletar <item_id>`: remove um item (arquivo ou link)
+- `/deletarcategoria <categoria_id>`: remove uma categoria (cascata em itens)
+
+## Armazenamento de Arquivos
+
+- O bot encaminha a mensagem com o arquivo para o canal privado (`STORAGE_CHANNEL_ID`), guardando `telegram_message_id` para reuso.
+- Certifique-se de adicionar o bot como administrador do canal e permitir postar mensagens.
+- Ao usuário solicitar um item do tipo arquivo, o bot faz forward a partir do canal de storage.
+
+## Banco de Dados
+
+- SQLite via `aiosqlite`, arquivo definido por `DATABASE_PATH` (padrão `bot.db`)
+- Tabelas: `categories`, `items` (file|link), `favorites`, `history`
+- Índices para busca por título e navegação paginada
+  
+O schema é inicializado automaticamente em runtime.
 
 ## Testes
 

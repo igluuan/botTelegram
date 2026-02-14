@@ -7,14 +7,15 @@ from telegram.ext import ContextTypes
 
 from bot import database
 from bot.config import get_settings
-from bot.keyboards import (
+from bot.ui.keyboards import (
     categories_menu,
     items_menu,
     item_actions_menu,
     main_menu,
     paginated_items_menu,
 )
-from bot.utils import build_item_body, items_overview, parse_positive_int
+from bot.ui.formatters import build_item_body, items_overview
+from bot.utils import parse_positive_int
 
 
 async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

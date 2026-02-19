@@ -7,11 +7,26 @@ from bot.db.connection import connect
 from bot.models import Category, Item
 
 
+_DB_PATH: str = ""
+
+
+def configure(*, db_path: str) -> None:
+    global _DB_PATH
+    _DB_PATH = db_path
+
+
+def _resolve_db_path(db_path: str | None) -> str:
+    if db_path:
+        return db_path
+    if _DB_PATH:
+        return _DB_PATH
+    return get_settings().database_path
+
+
 async def create_category(
     *, name: str, emoji: str = "📁", db_path: str | None = None
 ) -> int:
-    settings = get_settings()
-    resolved = db_path or settings.database_path
+    resolved = _resolve_db_path(db_path)
     async with connect(resolved) as conn:
         cur = await conn.execute(
             "INSERT INTO categories(name, emoji) VALUES (?, ?)",
@@ -24,8 +39,7 @@ async def create_category(
 async def list_categories(
     *, page: int = 1, limit: int = 10, db_path: str | None = None
 ) -> list[Category]:
-    settings = get_settings()
-    resolved = db_path or settings.database_path
+    resolved = _resolve_db_path(db_path)
     offset = (page - 1) * limit
     async with connect(resolved) as conn:
         cur = await conn.execute(
@@ -37,8 +51,7 @@ async def list_categories(
 
 
 async def count_categories(*, db_path: str | None = None) -> int:
-    settings = get_settings()
-    resolved = db_path or settings.database_path
+    resolved = _resolve_db_path(db_path)
     async with connect(resolved) as conn:
         cur = await conn.execute("SELECT COUNT(*) FROM categories")
         row = await cur.fetchone()
@@ -48,8 +61,7 @@ async def count_categories(*, db_path: str | None = None) -> int:
 async def list_categories_with_counts(
     *, db_path: str | None = None
 ) -> list[tuple[Category, int]]:
-    settings = get_settings()
-    resolved = db_path or settings.database_path
+    resolved = _resolve_db_path(db_path)
     async with connect(resolved) as conn:
         cur = await conn.execute(
             """
@@ -70,8 +82,7 @@ async def list_categories_with_counts(
 async def list_categories_with_counts_paged(
     *, page: int = 1, limit: int = 10, db_path: str | None = None
 ) -> list[tuple[Category, int]]:
-    settings = get_settings()
-    resolved = db_path or settings.database_path
+    resolved = _resolve_db_path(db_path)
     offset = (page - 1) * limit
     async with connect(resolved) as conn:
         cur = await conn.execute(
@@ -93,8 +104,7 @@ async def list_categories_with_counts_paged(
 
 
 async def get_category(*, category_id: int, db_path: str | None = None) -> Category | None:
-    settings = get_settings()
-    resolved = db_path or settings.database_path
+    resolved = _resolve_db_path(db_path)
     async with connect(resolved) as conn:
         cur = await conn.execute(
             "SELECT id, name, emoji FROM categories WHERE id = ?", (category_id,)
@@ -106,8 +116,7 @@ async def get_category(*, category_id: int, db_path: str | None = None) -> Categ
 async def get_category_by_name(
     *, name: str, db_path: str | None = None
 ) -> Category | None:
-    settings = get_settings()
-    resolved = db_path or settings.database_path
+    resolved = _resolve_db_path(db_path)
     normalized = name.strip()
     if not normalized:
         return None
@@ -121,8 +130,7 @@ async def get_category_by_name(
 
 
 async def delete_category(*, category_id: int, db_path: str | None = None) -> bool:
-    settings = get_settings()
-    resolved = db_path or settings.database_path
+    resolved = _resolve_db_path(db_path)
     async with connect(resolved) as conn:
         cur = await conn.execute("DELETE FROM categories WHERE id = ?", (category_id,))
         await conn.commit()
@@ -137,8 +145,7 @@ async def create_link_item(
     description: str | None = None,
     db_path: str | None = None,
 ) -> int:
-    settings = get_settings()
-    resolved = db_path or settings.database_path
+    resolved = _resolve_db_path(db_path)
     async with connect(resolved) as conn:
         cur = await conn.execute(
             """
@@ -159,8 +166,7 @@ async def create_file_item(
     description: str | None = None,
     db_path: str | None = None,
 ) -> int:
-    settings = get_settings()
-    resolved = db_path or settings.database_path
+    resolved = _resolve_db_path(db_path)
     async with connect(resolved) as conn:
         cur = await conn.execute(
             """
@@ -176,8 +182,7 @@ async def create_file_item(
 async def update_item_telegram_message_id(
     *, item_id: int, telegram_message_id: int, db_path: str | None = None
 ) -> bool:
-    settings = get_settings()
-    resolved = db_path or settings.database_path
+    resolved = _resolve_db_path(db_path)
     async with connect(resolved) as conn:
         cur = await conn.execute(
             "UPDATE items SET telegram_message_id = ? WHERE id = ?",
@@ -190,8 +195,7 @@ async def update_item_telegram_message_id(
 async def list_items_by_category(
     *, category_id: int, page: int = 1, limit: int = 10, db_path: str | None = None
 ) -> list[Item]:
-    settings = get_settings()
-    resolved = db_path or settings.database_path
+    resolved = _resolve_db_path(db_path)
     offset = (page - 1) * limit
     async with connect(resolved) as conn:
         cur = await conn.execute(
@@ -211,8 +215,7 @@ async def list_items_by_category(
 async def count_items_by_category(
     *, category_id: int, db_path: str | None = None
 ) -> int:
-    settings = get_settings()
-    resolved = db_path or settings.database_path
+    resolved = _resolve_db_path(db_path)
     async with connect(resolved) as conn:
         cur = await conn.execute(
             "SELECT COUNT(*) FROM items WHERE category_id = ?", (category_id,)
@@ -222,8 +225,7 @@ async def count_items_by_category(
 
 
 async def get_item(*, item_id: int, db_path: str | None = None) -> Item | None:
-    settings = get_settings()
-    resolved = db_path or settings.database_path
+    resolved = _resolve_db_path(db_path)
     async with connect(resolved) as conn:
         cur = await conn.execute(
             """
@@ -238,8 +240,7 @@ async def get_item(*, item_id: int, db_path: str | None = None) -> Item | None:
 
 
 async def get_item_by_url(*, url: str, db_path: str | None = None) -> Item | None:
-    settings = get_settings()
-    resolved = db_path or settings.database_path
+    resolved = _resolve_db_path(db_path)
     normalized = url.strip()
     if not normalized:
         return None
@@ -257,8 +258,7 @@ async def get_item_by_url(*, url: str, db_path: str | None = None) -> Item | Non
 
 
 async def delete_item(*, item_id: int, db_path: str | None = None) -> bool:
-    settings = get_settings()
-    resolved = db_path or settings.database_path
+    resolved = _resolve_db_path(db_path)
     async with connect(resolved) as conn:
         cur = await conn.execute("DELETE FROM items WHERE id = ?", (item_id,))
         await conn.commit()
@@ -268,8 +268,7 @@ async def delete_item(*, item_id: int, db_path: str | None = None) -> bool:
 async def search_items(
     *, term: str, page: int = 1, limit: int = 20, db_path: str | None = None
 ) -> list[Item]:
-    settings = get_settings()
-    resolved = db_path or settings.database_path
+    resolved = _resolve_db_path(db_path)
     normalized = term.strip()
     if not normalized:
         return []
@@ -290,8 +289,7 @@ async def search_items(
 
 
 async def count_search_items(*, term: str, db_path: str | None = None) -> int:
-    settings = get_settings()
-    resolved = db_path or settings.database_path
+    resolved = _resolve_db_path(db_path)
     normalized = term.strip()
     if not normalized:
         return 0
@@ -311,8 +309,7 @@ async def search_items_by_category(
     limit: int = 20,
     db_path: str | None = None,
 ) -> list[Item]:
-    settings = get_settings()
-    resolved = db_path or settings.database_path
+    resolved = _resolve_db_path(db_path)
     normalized = term.strip()
     if not normalized:
         return []
@@ -335,8 +332,7 @@ async def search_items_by_category(
 async def count_search_items_by_category(
     *, category_id: int, term: str, db_path: str | None = None
 ) -> int:
-    settings = get_settings()
-    resolved = db_path or settings.database_path
+    resolved = _resolve_db_path(db_path)
     normalized = term.strip()
     if not normalized:
         return 0
@@ -352,8 +348,7 @@ async def count_search_items_by_category(
 async def add_favorite(
     *, user_id: int, item_id: int, db_path: str | None = None
 ) -> None:
-    settings = get_settings()
-    resolved = db_path or settings.database_path
+    resolved = _resolve_db_path(db_path)
     async with connect(resolved) as conn:
         await conn.execute(
             "INSERT OR IGNORE INTO favorites(user_id, item_id) VALUES (?, ?)",
@@ -365,8 +360,7 @@ async def add_favorite(
 async def remove_favorite(
     *, user_id: int, item_id: int, db_path: str | None = None
 ) -> None:
-    settings = get_settings()
-    resolved = db_path or settings.database_path
+    resolved = _resolve_db_path(db_path)
     async with connect(resolved) as conn:
         await conn.execute(
             "DELETE FROM favorites WHERE user_id = ? AND item_id = ?",
@@ -378,8 +372,7 @@ async def remove_favorite(
 async def is_favorite(
     *, user_id: int, item_id: int, db_path: str | None = None
 ) -> bool:
-    settings = get_settings()
-    resolved = db_path or settings.database_path
+    resolved = _resolve_db_path(db_path)
     async with connect(resolved) as conn:
         cur = await conn.execute(
             "SELECT 1 FROM favorites WHERE user_id = ? AND item_id = ?",
@@ -392,8 +385,7 @@ async def is_favorite(
 async def list_favorites(
     *, user_id: int, page: int = 1, limit: int = 10, db_path: str | None = None
 ) -> list[Item]:
-    settings = get_settings()
-    resolved = db_path or settings.database_path
+    resolved = _resolve_db_path(db_path)
     offset = (page - 1) * limit
     async with connect(resolved) as conn:
         cur = await conn.execute(
@@ -412,8 +404,7 @@ async def list_favorites(
 
 
 async def count_favorites(*, user_id: int, db_path: str | None = None) -> int:
-    settings = get_settings()
-    resolved = db_path or settings.database_path
+    resolved = _resolve_db_path(db_path)
     async with connect(resolved) as conn:
         cur = await conn.execute(
             "SELECT COUNT(*) FROM favorites WHERE user_id = ?", (user_id,)
@@ -425,8 +416,7 @@ async def count_favorites(*, user_id: int, db_path: str | None = None) -> int:
 async def add_history_entry(
     *, user_id: int, item_id: int, limit: int = 20, db_path: str | None = None
 ) -> None:
-    settings = get_settings()
-    resolved = db_path or settings.database_path
+    resolved = _resolve_db_path(db_path)
     async with connect(resolved) as conn:
         await conn.execute(
             "INSERT INTO history(user_id, item_id) VALUES (?, ?)", (user_id, item_id)
@@ -449,8 +439,7 @@ async def add_history_entry(
 async def list_history(
     *, user_id: int, page: int = 1, limit: int = 10, db_path: str | None = None
 ) -> list[Item]:
-    settings = get_settings()
-    resolved = db_path or settings.database_path
+    resolved = _resolve_db_path(db_path)
     offset = (page - 1) * limit
     async with connect(resolved) as conn:
         cur = await conn.execute(
@@ -469,8 +458,7 @@ async def list_history(
 
 
 async def count_history(*, user_id: int, db_path: str | None = None) -> int:
-    settings = get_settings()
-    resolved = db_path or settings.database_path
+    resolved = _resolve_db_path(db_path)
     async with connect(resolved) as conn:
         cur = await conn.execute(
             "SELECT COUNT(*) FROM history WHERE user_id = ?", (user_id,)

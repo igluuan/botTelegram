@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 from telegram import Update
 from telegram.constants import ParseMode
-from telegram.ext import ContextTypes
+from telegram.ext import ContextTypes, ConversationHandler
 
 from bot import database
 from bot.config import get_settings
@@ -16,6 +16,9 @@ from bot.ui.keyboards import (
 )
 from bot.ui.formatters import build_item_body, items_overview
 from bot.utils import parse_positive_int
+
+
+WAITING_SEARCH_TERM = 1
 
 
 async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -377,45 +380,49 @@ async def search_pagination(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         )
 
 
-async def start_category_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def start_category_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if not update.callback_query:
-        return
+        return ConversationHandler.END
     data = update.callback_query.data or ""
     try:
         category_id = int(data.split("_")[-1])
     except ValueError:
         await update.callback_query.answer()
-        return
+        return ConversationHandler.END
 
     category = await database.get_category(category_id=category_id)
     if not category:
         await update.callback_query.answer(text="Categoria inválida.")
-        return
+        return ConversationHandler.END
 
     context.user_data["pending_category_search_id"] = category_id
     context.user_data["pending_category_search_name"] = category.name
     await update.callback_query.answer()
-    await update.callback_query.message.reply_text(
-        f"🔍 Digite o termo para buscar em {category.name}:"
-    )
+    if update.callback_query.message:
+        await update.callback_query.message.reply_text(
+            f"🔍 Digite o termo para buscar em {category.name}:"
+        )
+    return WAITING_SEARCH_TERM
 
 
 async def handle_pending_category_search(
     update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> None:
+) -> int:
     if not update.message:
-        return
-    category_id = context.user_data.pop("pending_category_search_id", None)
-    category_name = context.user_data.pop("pending_category_search_name", None)
+        return ConversationHandler.END
+    category_id = context.user_data.get("pending_category_search_id")
+    category_name = context.user_data.get("pending_category_search_name")
     if not isinstance(category_id, int):
-        return
+        return ConversationHandler.END
 
     term = (update.message.text or "").strip()
     if not term:
         await update.message.reply_text("🔍 Digite um termo válido para buscar.")
-        return
+        return WAITING_SEARCH_TERM
 
     msg = await update.message.reply_text("🔎 Buscando...")
+    context.user_data.pop("pending_category_search_id", None)
+    context.user_data.pop("pending_category_search_name", None)
     context.user_data["search_context"] = {"term": term, "category_id": category_id}
     context.user_data["last_back_data"] = "buscar_1"
     name = category_name or f"Categoria {category_id}"
@@ -429,6 +436,7 @@ async def handle_pending_category_search(
         )
     except Exception:
         await msg.edit_text(f"⚠️ Não foi possível buscar em {name}.")
+    return ConversationHandler.END
 
 
 async def show_favorites(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

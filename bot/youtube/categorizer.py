@@ -5,6 +5,9 @@ import re
 import os
 from typing import Any
 
+STOPWORDS = {"de", "e", "na", "no", "o", "a", "do", "da", "para", "em", "um", "uma", "com", "por"}
+
+
 def montar_description(dados: dict) -> str:
     return f"📦 {dados['equipamento']}\n📊 {dados['nivel']}\n🏷️ {dados['tags']}"
 
@@ -13,8 +16,8 @@ def _normalize_tags(tags: list[str]) -> tuple[list[str], str]:
     seen: set[str] = set()
     norm: list[str] = []
     for t in tags:
-        v = re.sub(r"\s+", "", str(t).lower())
-        if v and v not in seen:
+        v = re.sub(r"[^\w]", "", str(t).lower())
+        if v and v not in seen and v not in STOPWORDS and len(v) > 1:
             seen.add(v)
             norm.append(v)
     return norm, ", ".join(norm)
@@ -34,14 +37,28 @@ def _json_from_text(text: str) -> dict:
 def _fallback_categorizar(titulo: str, descricao: str) -> dict:
     text = f"{titulo} {descricao}"
     lowered = text.lower()
-    marcas = ["epson", "brother", "hp", "canon"]
+    marcas = [
+        "epson",
+        "brother",
+        "hp",
+        "canon",
+        "kyocera",
+        "ricoh",
+        "lexmark",
+        "xerox",
+        "samsung",
+    ]
     marca = ""
     for m in marcas:
         if m in lowered:
             marca = m.title()
             break
     modelo = None
-    m = re.search(r"\b([A-Z]{1,5}-?[A-Z0-9]{2,8})\b", text)
+    m = re.search(
+        r"\b([A-Za-z]{1,5}[-\s]?[A-Z0-9]{2,8}(?:[-\s][A-Z0-9]{2,6})?)\b",
+        text,
+        re.IGNORECASE,
+    )
     if m:
         token = m.group(1)
         if token.lower() not in {"youtube", "video", "manual", "printer"}:

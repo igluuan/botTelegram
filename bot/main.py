@@ -17,6 +17,7 @@ from telegram.ext import (
 
 from bot.config import get_settings
 from bot.database import init_db
+from bot.db.repository import configure
 from bot.handlers.admin import (
     ADD_FILE_WAITING,
     add_category,
@@ -42,6 +43,7 @@ from bot.handlers.user import (
     show_recentes,
     start_category_search,
     toggle_favorite,
+    WAITING_SEARCH_TERM,
 )
 
 
@@ -60,7 +62,9 @@ logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 
 async def on_error(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
-    logging.getLogger(__name__).exception("Unhandled error", exc_info=context.error)
+    logging.getLogger(__name__).exception(
+        "Unhandled error | update=%s", update, exc_info=context.error
+    )
     if isinstance(update, Update) and update.effective_chat:
         try:
             await context.bot.send_message(
@@ -78,6 +82,21 @@ def build_app(*, settings) -> Application:
     app.add_handler(CommandHandler("buscar", search))
     app.add_handler(CommandHandler("buscarcat", search_by_category_command))
 
+    conv_search = ConversationHandler(
+        entry_points=[
+            CallbackQueryHandler(start_category_search, pattern=r"^buscarcat_\d+$")
+        ],
+        states={
+            WAITING_SEARCH_TERM: [
+                MessageHandler(
+                    filters.TEXT & ~filters.COMMAND, handle_pending_category_search
+                )
+            ]
+        },
+        fallbacks=[CommandHandler("start", show_main_menu)],
+    )
+    app.add_handler(conv_search)
+
     app.add_handler(CallbackQueryHandler(show_main_menu, pattern="^back_main$"))
     app.add_handler(
         CallbackQueryHandler(
@@ -93,12 +112,8 @@ def build_app(*, settings) -> Application:
     app.add_handler(CallbackQueryHandler(search_pagination, pattern=r"^buscar_\d+$"))
     app.add_handler(CallbackQueryHandler(show_favorites, pattern=r"^favoritos_\d+$"))
     app.add_handler(CallbackQueryHandler(show_recentes, pattern=r"^recentes_\d+$"))
-    app.add_handler(CallbackQueryHandler(start_category_search, pattern=r"^buscarcat_\d+$"))
     app.add_handler(CallbackQueryHandler(toggle_favorite, pattern=r"^(fav|unfav)_\d+$"))
     app.add_handler(CallbackQueryHandler(noop, pattern=r"^noop$"))
-    app.add_handler(
-        MessageHandler(filters.TEXT & ~filters.COMMAND, handle_pending_category_search)
-    )
 
     app.add_handler(CommandHandler("admin", admin_panel))
     app.add_handler(CommandHandler("addcategoria", add_category))
@@ -123,12 +138,12 @@ def build_app(*, settings) -> Application:
 
 def main() -> None:
     settings = get_settings(strict=True)
+    configure(db_path=settings.database_path)
     asyncio.run(init_db(db_path=settings.database_path))
 
     app = build_app(settings=settings)
 
     logging.getLogger(__name__).info("Bot iniciado")
-    asyncio.set_event_loop(asyncio.new_event_loop())
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 

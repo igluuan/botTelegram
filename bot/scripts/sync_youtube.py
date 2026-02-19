@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import re
 from typing import Any
 
 from bot.config import get_settings
@@ -10,6 +11,13 @@ from bot.db.schema import init_db
 from bot import database
 from bot.youtube.extractor import extrair_videos_canal
 from bot.youtube.categorizer import categorizar_video, montar_description
+
+
+def normalize_youtube_url(url: str) -> str:
+    match = re.search(r"(?:v=|youtu\.be/)([A-Za-z0-9_-]{11})", url)
+    if match:
+        return f"https://www.youtube.com/watch?v={match.group(1)}"
+    return url
 
 
 def _resolver_canal(raw: str) -> str:
@@ -42,7 +50,7 @@ def _nome_categoria(dados: dict, categoria_por: str) -> str:
 
 
 async def _processar_video(video: dict, categoria_por: str) -> tuple[bool, str | None]:
-    url = str(video["url"])
+    url = normalize_youtube_url(str(video["url"]))
     existing = await database.get_item_by_url(url=url)
     if existing:
         return False, None

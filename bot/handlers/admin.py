@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from telegram import Update
-from telegram.ext import ContextTypes
+from telegram.ext import ContextTypes, ConversationHandler
 
 from bot import database
 from bot.config import get_settings
@@ -125,37 +125,37 @@ async def add_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def add_file_step1(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if await _reject_if_not_admin(update):
-        return -1
+        return ConversationHandler.END
     if not update.message:
-        return -1
+        return ConversationHandler.END
     args = split_command_args(update.message.text or "")
     if len(args) < 2:
         await update.message.reply_text(
             "📎 Uso: /addfile <categoria_id> <título> [descrição]"
         )
-        return -1
+        return ConversationHandler.END
 
     try:
         category_id = parse_positive_int(args[0], field_name="categoria_id")
     except ValueError:
         await update.message.reply_text("⚠️ categoria_id inválido.")
-        return -1
+        return ConversationHandler.END
 
     title = args[1].strip()
     description = " ".join(args[2:]).strip() if len(args) > 2 else None
 
     if not title:
         await update.message.reply_text("⚠️ Título inválido.")
-        return -1
+        return ConversationHandler.END
 
     try:
         cat = await database.get_category(category_id=category_id)
         if not cat:
             await update.message.reply_text("⚠️ Categoria não encontrada.")
-            return -1
+            return ConversationHandler.END
     except Exception:
         await update.message.reply_text("⚠️ Não foi possível validar a categoria.")
-        return -1
+        return ConversationHandler.END
 
     context.user_data["pending_file"] = {
         "category_id": category_id,
@@ -168,20 +168,20 @@ async def add_file_step1(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 async def add_file_step2(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if await _reject_if_not_admin(update):
-        return -1
+        return ConversationHandler.END
     if not update.message:
-        return -1
+        return ConversationHandler.END
     pending = context.user_data.get("pending_file")
     if not isinstance(pending, dict):
         await update.message.reply_text("⚠️ Nenhum cadastro de arquivo em andamento.")
-        return -1
+        return ConversationHandler.END
 
     settings = get_settings()
     if not settings.storage_channel_id:
         await update.message.reply_text(
             "⚠️ STORAGE_CHANNEL_ID não configurado."
         )
-        return -1
+        return ConversationHandler.END
 
     try:
         stored = await context.bot.forward_message(
@@ -192,7 +192,7 @@ async def add_file_step2(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         telegram_message_id = int(stored.message_id)
     except Exception:
         await update.message.reply_text("⚠️ Não foi possível armazenar o arquivo.")
-        return -1
+        return ConversationHandler.END
 
     try:
         item_id = await database.create_file_item(
@@ -203,12 +203,12 @@ async def add_file_step2(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         )
     except Exception:
         await update.message.reply_text("⚠️ Não foi possível salvar no banco.")
-        return -1
+        return ConversationHandler.END
     finally:
         context.user_data.pop("pending_file", None)
 
     await update.message.reply_text(f"✅ Arquivo cadastrado com sucesso! ID: {item_id}")
-    return -1
+    return ConversationHandler.END
 
 
 async def list_all(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -277,4 +277,3 @@ async def delete_category(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     await update.message.reply_text(
         "✅ Categoria removida." if removed else "⚠️ Categoria não encontrada."
     )
-

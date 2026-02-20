@@ -1,0 +1,12 @@
+.env
+*.db
+__pycache__/
+.pytest_cache/
+.venv/
+venv/
+.ruff_cache/
+*.pyc
+
+bot.log
+unknown_models.log
+implementação_yt.md

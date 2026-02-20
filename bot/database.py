@@ -19,6 +19,7 @@ from bot.db.repository import (
     get_category,
     get_category_by_name,
     get_item,
+    get_item_by_video_id,
     get_item_by_url,
     is_favorite,
     list_categories,

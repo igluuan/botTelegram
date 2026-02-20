@@ -29,6 +29,12 @@ class Item:
     telegram_message_id: int | None
     url: str | None
     description: str | None
+    video_id: str | None = None
+    marca: str | None = None
+    modelo: str | None = None
+    tipo: str | None = None
+    nivel: str | None = None
+    youtube_url: str | None = None
 
     @staticmethod
     def from_row(row: aiosqlite.Row) -> "Item":
@@ -40,5 +46,11 @@ class Item:
             telegram_message_id=row["telegram_message_id"],
             url=row["url"],
             description=row["description"],
+            video_id=row["video_id"],
+            marca=row["marca"],
+            modelo=row["modelo"],
+            tipo=row["tipo"],
+            nivel=row["nivel"],
+            youtube_url=row["youtube_url"],
         )
 

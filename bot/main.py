@@ -136,10 +136,14 @@ def build_app(*, settings) -> Application:
     app.add_error_handler(on_error)
     return app
 
+
 def main() -> None:
     settings = get_settings(strict=True)
     configure(db_path=settings.database_path)
-    asyncio.run(init_db(db_path=settings.database_path))
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(init_db(db_path=settings.database_path))
 
     app = build_app(settings=settings)
 

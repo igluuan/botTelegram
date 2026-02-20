@@ -198,35 +198,39 @@ async def send_item(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         return
 
     settings = get_settings()
-    if not settings.storage_channel_id:
-        await update.callback_query.edit_message_text(
-            "⚠️ Storage do canal não configurado (STORAGE_CHANNEL_ID)."
-        )
-        return
-    if not item.telegram_message_id:
-        await update.callback_query.edit_message_text("⚠️ Arquivo indisponível.")
+    back_data = context.user_data.get("last_back_data") or f"back_cat_{item.category_id}"
+    is_favorite = False
+    if user_id:
+        is_favorite = await database.is_favorite(user_id=user_id, item_id=item.id)
+
+    if item.type == "file" and not item.telegram_message_id and not item.url:
+        await update.callback_query.edit_message_text("⚠️ Arquivo indisponível no momento.")
         return
 
-    try:
-        await context.bot.forward_message(
-            chat_id=update.effective_chat.id,
-            from_chat_id=settings.storage_channel_id,
-            message_id=item.telegram_message_id,
-        )
-    except Exception:
-        await update.callback_query.edit_message_text(
-            "⚠️ Não foi possível enviar o arquivo agora."
-        )
-        return
+    # Tenta encaminhar do canal se tiver telegram_message_id
+    if item.telegram_message_id and settings.storage_channel_id:
+        try:
+            await context.bot.forward_message(
+                chat_id=update.effective_chat.id,
+                from_chat_id=settings.storage_channel_id,
+                message_id=item.telegram_message_id,
+            )
+        except Exception:
+            pass  # fallback abaixo
 
+    # Sempre envia o corpo com os botões de ação
     body = build_item_body(item)
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
         text=body,
         reply_markup=item_actions_menu(
-            item_id=item.id, is_favorite=is_favorite, back_data=back_data
+            item_id=item.id,
+            is_favorite=is_favorite,
+            back_data=back_data,
+            url=item.url or "",
         ),
         parse_mode=ParseMode.HTML,
+        disable_web_page_preview=True,
     )
 
 

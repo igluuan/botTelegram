@@ -1,1 +1,1 @@
-__all__ = ["extractor", "categorizer"]
+__all__ = ["extractor", "categorizer", "known_models"]

@@ -143,16 +143,45 @@ async def create_link_item(
     title: str,
     url: str,
     description: str | None = None,
+    video_id: str | None = None,
+    marca: str | None = None,
+    modelo: str | None = None,
+    tipo: str | None = None,
+    nivel: str | None = None,
+    youtube_url: str | None = None,
     db_path: str | None = None,
 ) -> int:
     resolved = _resolve_db_path(db_path)
     async with connect(resolved) as conn:
         cur = await conn.execute(
             """
-            INSERT INTO items(category_id, title, type, url, description)
-            VALUES (?, ?, 'link', ?, ?)
+            INSERT INTO items(
+                category_id,
+                title,
+                type,
+                url,
+                description,
+                video_id,
+                marca,
+                modelo,
+                tipo,
+                nivel,
+                youtube_url
+            )
+            VALUES (?, ?, 'link', ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (category_id, title.strip(), url.strip(), (description or None)),
+            (
+                category_id,
+                title.strip(),
+                url.strip(),
+                (description or None),
+                (video_id.strip() if video_id else None),
+                (marca or None),
+                (modelo or None),
+                (tipo or None),
+                (nivel or None),
+                (youtube_url.strip() if youtube_url else None),
+            ),
         )
         await conn.commit()
         return int(cur.lastrowid)
@@ -164,16 +193,45 @@ async def create_file_item(
     title: str,
     telegram_message_id: int,
     description: str | None = None,
+    video_id: str | None = None,
+    marca: str | None = None,
+    modelo: str | None = None,
+    tipo: str | None = None,
+    nivel: str | None = None,
+    youtube_url: str | None = None,
     db_path: str | None = None,
 ) -> int:
     resolved = _resolve_db_path(db_path)
     async with connect(resolved) as conn:
         cur = await conn.execute(
             """
-            INSERT INTO items(category_id, title, type, telegram_message_id, description)
-            VALUES (?, ?, 'file', ?, ?)
+            INSERT INTO items(
+                category_id,
+                title,
+                type,
+                telegram_message_id,
+                description,
+                video_id,
+                marca,
+                modelo,
+                tipo,
+                nivel,
+                youtube_url
+            )
+            VALUES (?, ?, 'file', ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (category_id, title.strip(), telegram_message_id, (description or None)),
+            (
+                category_id,
+                title.strip(),
+                telegram_message_id,
+                (description or None),
+                (video_id.strip() if video_id else None),
+                (marca or None),
+                (modelo or None),
+                (tipo or None),
+                (nivel or None),
+                (youtube_url.strip() if youtube_url else None),
+            ),
         )
         await conn.commit()
         return int(cur.lastrowid)
@@ -200,7 +258,8 @@ async def list_items_by_category(
     async with connect(resolved) as conn:
         cur = await conn.execute(
             """
-            SELECT id, category_id, title, type, telegram_message_id, url, description
+            SELECT id, category_id, title, type, telegram_message_id, url, description,
+                   video_id, marca, modelo, tipo, nivel, youtube_url
             FROM items
             WHERE category_id = ?
             ORDER BY created_at DESC, id DESC
@@ -229,7 +288,8 @@ async def get_item(*, item_id: int, db_path: str | None = None) -> Item | None:
     async with connect(resolved) as conn:
         cur = await conn.execute(
             """
-            SELECT id, category_id, title, type, telegram_message_id, url, description
+            SELECT id, category_id, title, type, telegram_message_id, url, description,
+                   video_id, marca, modelo, tipo, nivel, youtube_url
             FROM items
             WHERE id = ?
             """,
@@ -247,9 +307,31 @@ async def get_item_by_url(*, url: str, db_path: str | None = None) -> Item | Non
     async with connect(resolved) as conn:
         cur = await conn.execute(
             """
-            SELECT id, category_id, title, type, telegram_message_id, url, description
+            SELECT id, category_id, title, type, telegram_message_id, url, description,
+                   video_id, marca, modelo, tipo, nivel, youtube_url
             FROM items
             WHERE url = ?
+            """,
+            (normalized,),
+        )
+        row = await cur.fetchone()
+        return Item.from_row(row) if row else None
+
+
+async def get_item_by_video_id(
+    *, video_id: str, db_path: str | None = None
+) -> Item | None:
+    resolved = _resolve_db_path(db_path)
+    normalized = video_id.strip()
+    if not normalized:
+        return None
+    async with connect(resolved) as conn:
+        cur = await conn.execute(
+            """
+            SELECT id, category_id, title, type, telegram_message_id, url, description,
+                   video_id, marca, modelo, tipo, nivel, youtube_url
+            FROM items
+            WHERE video_id = ?
             """,
             (normalized,),
         )
@@ -276,7 +358,8 @@ async def search_items(
     async with connect(resolved) as conn:
         cur = await conn.execute(
             """
-            SELECT id, category_id, title, type, telegram_message_id, url, description
+            SELECT id, category_id, title, type, telegram_message_id, url, description,
+                   video_id, marca, modelo, tipo, nivel, youtube_url
             FROM items
             WHERE title LIKE ?
             ORDER BY created_at DESC, id DESC
@@ -317,7 +400,8 @@ async def search_items_by_category(
     async with connect(resolved) as conn:
         cur = await conn.execute(
             """
-            SELECT id, category_id, title, type, telegram_message_id, url, description
+            SELECT id, category_id, title, type, telegram_message_id, url, description,
+                   video_id, marca, modelo, tipo, nivel, youtube_url
             FROM items
             WHERE category_id = ? AND title LIKE ?
             ORDER BY created_at DESC, id DESC
@@ -390,7 +474,8 @@ async def list_favorites(
     async with connect(resolved) as conn:
         cur = await conn.execute(
             """
-            SELECT i.id, i.category_id, i.title, i.type, i.telegram_message_id, i.url, i.description
+            SELECT i.id, i.category_id, i.title, i.type, i.telegram_message_id, i.url, i.description,
+                   i.video_id, i.marca, i.modelo, i.tipo, i.nivel, i.youtube_url
             FROM favorites f
             JOIN items i ON i.id = f.item_id
             WHERE f.user_id = ?
@@ -444,7 +529,8 @@ async def list_history(
     async with connect(resolved) as conn:
         cur = await conn.execute(
             """
-            SELECT i.id, i.category_id, i.title, i.type, i.telegram_message_id, i.url, i.description
+            SELECT i.id, i.category_id, i.title, i.type, i.telegram_message_id, i.url, i.description,
+                   i.video_id, i.marca, i.modelo, i.tipo, i.nivel, i.youtube_url
             FROM history h
             JOIN items i ON i.id = h.item_id
             WHERE h.user_id = ?

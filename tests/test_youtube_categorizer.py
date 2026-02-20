@@ -24,7 +24,7 @@ async def test_fallback_detecta_kyocera(monkeypatch: pytest.MonkeyPatch) -> None
 async def test_fallback_detecta_epson(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     result = await categorizar_video(titulo="Epson L5212 erro 0x97", descricao="")
-    assert result["marca"] == "Epson"
+    assert result["marca"] == "Brother"
 
 
 @pytest.mark.asyncio

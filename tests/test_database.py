@@ -3,12 +3,13 @@ from __future__ import annotations
 import aiosqlite
 import pytest
 
-from bot import database
+from bot.db import repository as database
+from bot.db import schema
 
 
 @pytest.mark.asyncio
 async def test_init_and_category_crud(temp_db_path: str) -> None:
-    await database.init_db(db_path=temp_db_path)
+    await schema.init_db(db_path=temp_db_path)
     cat_id = await database.create_category(name="Docs", emoji="📁", db_path=temp_db_path)
     cats = await database.list_categories(db_path=temp_db_path)
     assert [c.id for c in cats] == [cat_id]
@@ -22,7 +23,7 @@ async def test_init_and_category_crud(temp_db_path: str) -> None:
 
 @pytest.mark.asyncio
 async def test_item_crud_and_search(temp_db_path: str) -> None:
-    await database.init_db(db_path=temp_db_path)
+    await schema.init_db(db_path=temp_db_path)
     cat_id = await database.create_category(name="Links", emoji="🔗", db_path=temp_db_path)
     link_id = await database.create_link_item(
         category_id=cat_id,
@@ -49,7 +50,7 @@ async def test_item_crud_and_search(temp_db_path: str) -> None:
 
 @pytest.mark.asyncio
 async def test_category_counts_and_paging(temp_db_path: str) -> None:
-    await database.init_db(db_path=temp_db_path)
+    await schema.init_db(db_path=temp_db_path)
     cat_a = await database.create_category(name="Alpha", emoji="🅰️", db_path=temp_db_path)
     cat_b = await database.create_category(name="Beta", emoji="🅱️", db_path=temp_db_path)
     cat_c = await database.create_category(name="Gamma", emoji="🌀", db_path=temp_db_path)
@@ -84,7 +85,7 @@ async def test_category_counts_and_paging(temp_db_path: str) -> None:
 
 @pytest.mark.asyncio
 async def test_search_pagination_and_category_search(temp_db_path: str) -> None:
-    await database.init_db(db_path=temp_db_path)
+    await schema.init_db(db_path=temp_db_path)
     cat_docs = await database.create_category(name="Docs", emoji="📄", db_path=temp_db_path)
     cat_links = await database.create_category(name="Links", emoji="🔗", db_path=temp_db_path)
     ids_docs = []
@@ -127,7 +128,7 @@ async def test_search_pagination_and_category_search(temp_db_path: str) -> None:
 
 @pytest.mark.asyncio
 async def test_favorites_and_history(temp_db_path: str) -> None:
-    await database.init_db(db_path=temp_db_path)
+    await schema.init_db(db_path=temp_db_path)
     cat_id = await database.create_category(name="Favoritos", emoji="⭐", db_path=temp_db_path)
     item_a = await database.create_link_item(
         category_id=cat_id,
@@ -184,7 +185,7 @@ async def test_favorites_and_history(temp_db_path: str) -> None:
 
 @pytest.mark.asyncio
 async def test_create_category_duplicate_name(temp_db_path: str) -> None:
-    await database.init_db(db_path=temp_db_path)
+    await schema.init_db(db_path=temp_db_path)
     await database.create_category(name="Docs", emoji="📁", db_path=temp_db_path)
     with pytest.raises(aiosqlite.IntegrityError):
         await database.create_category(name="Docs", emoji="📁", db_path=temp_db_path)
@@ -192,13 +193,13 @@ async def test_create_category_duplicate_name(temp_db_path: str) -> None:
 
 @pytest.mark.asyncio
 async def test_get_category_not_found(temp_db_path: str) -> None:
-    await database.init_db(db_path=temp_db_path)
+    await schema.init_db(db_path=temp_db_path)
     assert await database.get_category(category_id=999, db_path=temp_db_path) is None
 
 
 @pytest.mark.asyncio
 async def test_get_category_by_name_case_insensitive(temp_db_path: str) -> None:
-    await database.init_db(db_path=temp_db_path)
+    await schema.init_db(db_path=temp_db_path)
     await database.create_category(name="Brother", emoji="📁", db_path=temp_db_path)
     cat = await database.get_category_by_name(name="brother", db_path=temp_db_path)
     assert cat is not None
@@ -207,7 +208,7 @@ async def test_get_category_by_name_case_insensitive(temp_db_path: str) -> None:
 
 @pytest.mark.asyncio
 async def test_get_item_by_url(temp_db_path: str) -> None:
-    await database.init_db(db_path=temp_db_path)
+    await schema.init_db(db_path=temp_db_path)
     cat_id = await database.create_category(name="Links", emoji="🔗", db_path=temp_db_path)
     url = "https://example.com/a"
     item_id = await database.create_link_item(
@@ -224,7 +225,7 @@ async def test_get_item_by_url(temp_db_path: str) -> None:
 
 @pytest.mark.asyncio
 async def test_get_item_by_url_not_found(temp_db_path: str) -> None:
-    await database.init_db(db_path=temp_db_path)
+    await schema.init_db(db_path=temp_db_path)
     assert (
         await database.get_item_by_url(url="https://example.com/miss", db_path=temp_db_path)
         is None
@@ -233,7 +234,7 @@ async def test_get_item_by_url_not_found(temp_db_path: str) -> None:
 
 @pytest.mark.asyncio
 async def test_update_item_telegram_message_id(temp_db_path: str) -> None:
-    await database.init_db(db_path=temp_db_path)
+    await schema.init_db(db_path=temp_db_path)
     cat_id = await database.create_category(name="Files", emoji="📎", db_path=temp_db_path)
     item_id = await database.create_file_item(
         category_id=cat_id,
@@ -253,19 +254,19 @@ async def test_update_item_telegram_message_id(temp_db_path: str) -> None:
 
 @pytest.mark.asyncio
 async def test_delete_item_not_found(temp_db_path: str) -> None:
-    await database.init_db(db_path=temp_db_path)
+    await schema.init_db(db_path=temp_db_path)
     assert await database.delete_item(item_id=999, db_path=temp_db_path) is False
 
 
 @pytest.mark.asyncio
 async def test_delete_category_not_found(temp_db_path: str) -> None:
-    await database.init_db(db_path=temp_db_path)
+    await schema.init_db(db_path=temp_db_path)
     assert await database.delete_category(category_id=999, db_path=temp_db_path) is False
 
 
 @pytest.mark.asyncio
 async def test_count_items_by_category_empty(temp_db_path: str) -> None:
-    await database.init_db(db_path=temp_db_path)
+    await schema.init_db(db_path=temp_db_path)
     cat_id = await database.create_category(name="Empty", emoji="📁", db_path=temp_db_path)
     assert (
         await database.count_items_by_category(category_id=cat_id, db_path=temp_db_path)
@@ -275,7 +276,7 @@ async def test_count_items_by_category_empty(temp_db_path: str) -> None:
 
 @pytest.mark.asyncio
 async def test_history_limit_enforced(temp_db_path: str) -> None:
-    await database.init_db(db_path=temp_db_path)
+    await schema.init_db(db_path=temp_db_path)
     cat_id = await database.create_category(name="Hist", emoji="📁", db_path=temp_db_path)
     item_a = await database.create_link_item(
         category_id=cat_id,
@@ -303,7 +304,7 @@ async def test_history_limit_enforced(temp_db_path: str) -> None:
 
 @pytest.mark.asyncio
 async def test_add_favorite_idempotent(temp_db_path: str) -> None:
-    await database.init_db(db_path=temp_db_path)
+    await schema.init_db(db_path=temp_db_path)
     cat_id = await database.create_category(name="Fav", emoji="⭐", db_path=temp_db_path)
     item_id = await database.create_link_item(
         category_id=cat_id,
@@ -320,4 +321,3 @@ async def test_add_favorite_idempotent(temp_db_path: str) -> None:
 
 def test_format_categories_list_empty() -> None:
     assert database.format_categories_list([]) == "📭 Nenhuma categoria cadastrada ainda."
-

@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import logging
 import math
+import re
 from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes, ConversationHandler
 
-from bot import database
+from bot.db import repository as database
 from bot.config import get_settings
 from bot.ui.keyboards import (
     categories_menu,
@@ -17,11 +19,18 @@ from bot.ui.keyboards import (
 from bot.ui.formatters import build_item_body, items_overview
 from bot.utils import parse_positive_int
 
+logger = logging.getLogger(__name__)
+
 
 WAITING_SEARCH_TERM = 1
 
 
 async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    context.user_data.pop("last_back_data", None)
+    context.user_data.pop("search_context", None)
+    context.user_data.pop("pending_category_search_id", None)
+    context.user_data.pop("pending_category_search_name", None)
+
     text = (
         "🤖 Bem-vindo!\n\n"
         "Use os botões abaixo para navegar pelas categorias.\n"
@@ -35,6 +44,12 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return
     if update.message:
         await update.message.reply_text(text, reply_markup=main_menu())
+
+
+async def limpar_contexto(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    context.user_data.clear()
+    if update.message:
+        await update.message.reply_text("✅ Contexto limpo.", reply_markup=main_menu())
 
 
 async def show_categories(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -111,7 +126,7 @@ async def show_items(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
             await update.callback_query.edit_message_text("⚠️ Categoria não encontrada.")
             return
 
-        limit = 10
+        limit = 5
         total_count = await database.count_items_by_category(category_id=category_id)
         total_pages = math.ceil(total_count / limit)
         if page > total_pages and total_pages > 0:
@@ -242,7 +257,7 @@ async def _render_search_results_message(
     category_id: int | None,
     back_data: str,
 ) -> None:
-    limit = 10
+    limit = 5
     if category_id is None:
         total_count = await database.count_search_items(term=term)
         total_pages = math.ceil(total_count / limit)
@@ -261,14 +276,10 @@ async def _render_search_results_message(
         )
 
     total_pages_display = max(total_pages, 1)
-    lines = [f"{title}", f"Resultados: {total_count}"]
+    lines = [f"🔎 {term.capitalize()}", f"Resultados: {total_count}"]
     if total_pages_display > 1:
         lines.append(f"Página: {page}/{total_pages_display}")
-    lines.append("")
-    if items:
-        lines.extend(items_overview(items))
-        lines.extend(["", "Toque em um item para abrir:"])
-    else:
+    if not items:
         lines.append("📭 Nenhum resultado encontrado.")
 
     await edit_message(
@@ -283,12 +294,45 @@ async def _render_search_results_message(
     )
 
 
+async def handle_free_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not update.message or not update.message.text:
+        return
+    term = update.message.text.strip()
+    if not term or term.startswith("/"):
+        return
+
+    if len(term) < 3:
+        await update.message.reply_text("🔍 Digite ao menos 3 caracteres.")
+        return
+
+    # Normaliza: "5912 dw" → "5912dw", "HL-L5912" → "hll5912"
+    term_norm = re.sub(r"[\s\-]", "", term).lower()
+
+    msg = await update.message.reply_text("🔎 Buscando...")
+    context.user_data["search_context"] = {"term": term_norm, "category_id": None}
+    context.user_data["last_back_data"] = "buscar_1"
+    try:
+        await _render_search_results_message(
+            edit_message=msg.edit_text,
+            term=term_norm,
+            page=1,
+            category_id=None,
+            back_data="back_main",
+        )
+    except Exception:
+        await msg.edit_text("⚠️ Não foi possível buscar agora.")
+
+
 async def search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not update.message:
         return
     term = " ".join(context.args or []).strip()
     if not term:
         await update.message.reply_text("🔍 Uso: /buscar <termo>")
+        return
+
+    if len(term) < 3:
+        await update.message.reply_text("🔍 Digite ao menos 3 caracteres.")
         return
 
     msg = await update.message.reply_text("🔎 Buscando...")
@@ -458,14 +502,16 @@ async def show_favorites(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await update.callback_query.edit_message_text("⚠️ Usuário inválido.")
         return
 
+    items = []
     try:
-        limit = 10
+        limit = 5
         total_count = await database.count_favorites(user_id=user_id)
         total_pages = math.ceil(total_count / limit)
         if page > total_pages and total_pages > 0:
             page = total_pages
         items = await database.list_favorites(user_id=user_id, page=page, limit=limit)
-    except Exception:
+    except Exception as e:
+        logger.exception("Erro ao carregar favoritos: %s", e)
         await update.callback_query.edit_message_text(
             "⚠️ Não foi possível carregar seus favoritos agora."
         )
@@ -510,14 +556,16 @@ async def show_recentes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         await update.callback_query.edit_message_text("⚠️ Usuário inválido.")
         return
 
+    items = []
     try:
-        limit = 10
+        limit = 5
         total_count = await database.count_history(user_id=user_id)
         total_pages = math.ceil(total_count / limit)
         if page > total_pages and total_pages > 0:
             page = total_pages
         items = await database.list_history(user_id=user_id, page=page, limit=limit)
-    except Exception:
+    except Exception as e:
+        logger.exception("Erro ao carregar recentes: %s", e)
         await update.callback_query.edit_message_text(
             "⚠️ Não foi possível carregar seus recentes agora."
         )

@@ -1,4 +1,5 @@
 from __future__ import annotations
+from bot.youtube.unknown_tracker import registrar
 
 import re
 
@@ -123,5 +124,5 @@ def validate_model(model_candidate: str, brand: str) -> str | None:
 
     if not any(c.isdigit() for c in model_candidate):
         return None
-
+    registrar(brand, model_candidate)
     return model_candidate

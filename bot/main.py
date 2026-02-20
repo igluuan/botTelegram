@@ -16,7 +16,7 @@ from telegram.ext import (
 )
 
 from bot.config import get_settings
-from bot.database import init_db
+from bot.db.schema import init_db
 from bot.db.repository import configure
 from bot.handlers.admin import (
     ADD_FILE_WAITING,
@@ -30,7 +30,9 @@ from bot.handlers.admin import (
     list_all,
 )
 from bot.handlers.user import (
+    handle_free_text,
     handle_pending_category_search,
+    limpar_contexto,
     noop,
     search,
     search_by_category_command,
@@ -79,6 +81,7 @@ def build_app(*, settings) -> Application:
     app = Application.builder().token(settings.bot_token).build()
 
     app.add_handler(CommandHandler("start", show_main_menu))
+    app.add_handler(CommandHandler("limpar", limpar_contexto))
     app.add_handler(CommandHandler("buscar", search))
     app.add_handler(CommandHandler("buscarcat", search_by_category_command))
 
@@ -132,6 +135,9 @@ def build_app(*, settings) -> Application:
         fallbacks=[],
     )
     app.add_handler(conv)
+
+    # Handler de texto livre deve ser o último antes do error handler
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_free_text))
 
     app.add_error_handler(on_error)
     return app

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import logging
 from telegram import Update
 from telegram.ext import ContextTypes, ConversationHandler
 
-from bot import database
+from bot.db import repository as database
 from bot.config import get_settings
 from bot.utils import (
     is_valid_http_url,
@@ -11,6 +12,8 @@ from bot.utils import (
     parse_positive_int,
     split_command_args,
 )
+
+logger = logging.getLogger(__name__)
 
 
 ADD_FILE_WAITING = 1
@@ -71,7 +74,8 @@ async def add_category(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     try:
         cat_id = await database.create_category(name=name, emoji=emoji)
-    except Exception:
+    except Exception as e:
+        logger.exception("Erro ao criar categoria: %s", e)
         await update.message.reply_text("⚠️ Não foi possível criar a categoria.")
         return
 
@@ -116,7 +120,8 @@ async def add_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         item_id = await database.create_link_item(
             category_id=category_id, title=title, url=url, description=description
         )
-    except Exception:
+    except Exception as e:
+        logger.exception("Erro ao cadastrar link: %s", e)
         await update.message.reply_text("⚠️ Não foi possível cadastrar o link.")
         return
 
@@ -153,7 +158,8 @@ async def add_file_step1(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         if not cat:
             await update.message.reply_text("⚠️ Categoria não encontrada.")
             return ConversationHandler.END
-    except Exception:
+    except Exception as e:
+        logger.exception("Erro ao validar categoria (file step 1): %s", e)
         await update.message.reply_text("⚠️ Não foi possível validar a categoria.")
         return ConversationHandler.END
 
@@ -190,7 +196,8 @@ async def add_file_step2(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             message_id=update.message.message_id,
         )
         telegram_message_id = int(stored.message_id)
-    except Exception:
+    except Exception as e:
+        logger.exception("Erro ao encaminhar arquivo para canal: %s", e)
         await update.message.reply_text("⚠️ Não foi possível armazenar o arquivo.")
         return ConversationHandler.END
 
@@ -201,7 +208,8 @@ async def add_file_step2(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             telegram_message_id=telegram_message_id,
             description=pending.get("description"),
         )
-    except Exception:
+    except Exception as e:
+        logger.exception("Erro ao salvar item de arquivo no banco: %s", e)
         await update.message.reply_text("⚠️ Não foi possível salvar no banco.")
         return ConversationHandler.END
     finally:
@@ -219,7 +227,8 @@ async def list_all(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     try:
         cats = await database.list_categories_with_counts()
-    except Exception:
+    except Exception as e:
+        logger.exception("Erro ao listar categorias: %s", e)
         await update.message.reply_text("⚠️ Não foi possível listar agora.")
         return
     await update.message.reply_text(database.format_categories_list(cats))
@@ -243,7 +252,8 @@ async def delete_item(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     try:
         removed = await database.delete_item(item_id=item_id)
-    except Exception:
+    except Exception as e:
+        logger.exception("Erro ao deletar item: %s", e)
         await update.message.reply_text("⚠️ Não foi possível deletar agora.")
         return
 
@@ -270,7 +280,8 @@ async def delete_category(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
     try:
         removed = await database.delete_category(category_id=category_id)
-    except Exception:
+    except Exception as e:
+        logger.exception("Erro ao deletar categoria: %s", e)
         await update.message.reply_text("⚠️ Não foi possível deletar agora.")
         return
 

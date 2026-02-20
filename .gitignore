@@ -8,4 +8,5 @@ venv/
 *.pyc
 
 bot.log
+unknown_models.log
 implementação_yt.md

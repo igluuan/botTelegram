@@ -355,17 +355,24 @@ async def search_items(
     if not normalized:
         return []
     offset = (page - 1) * limit
+    param = f"%{normalized}%"
     async with connect(resolved) as conn:
         cur = await conn.execute(
             """
             SELECT id, category_id, title, type, telegram_message_id, url, description,
                    video_id, marca, modelo, tipo, nivel, youtube_url
             FROM items
-            WHERE title LIKE ?
-            ORDER BY created_at DESC, id DESC
+            WHERE (title LIKE ? OR description LIKE ? OR marca LIKE ? OR modelo LIKE ? OR tags LIKE ?)
+            ORDER BY
+              CASE
+                WHEN LOWER(modelo) = LOWER(?) THEN 0
+                WHEN LOWER(marca) = LOWER(?) THEN 1
+                WHEN title LIKE ? THEN 2
+                ELSE 3
+              END, id DESC
             LIMIT ? OFFSET ?
             """,
-            (f"%{normalized}%", limit, offset),
+            (param, param, param, param, param, normalized, normalized, param, limit, offset),
         )
         rows = await cur.fetchall()
         return [Item.from_row(r) for r in rows]
@@ -376,9 +383,11 @@ async def count_search_items(*, term: str, db_path: str | None = None) -> int:
     normalized = term.strip()
     if not normalized:
         return 0
+    param = f"%{normalized}%"
     async with connect(resolved) as conn:
         cur = await conn.execute(
-            "SELECT COUNT(*) FROM items WHERE title LIKE ?", (f"%{normalized}%",)
+            "SELECT COUNT(*) FROM items WHERE (title LIKE ? OR description LIKE ? OR marca LIKE ? OR modelo LIKE ? OR tags LIKE ?)",
+            (param, param, param, param, param),
         )
         row = await cur.fetchone()
         return int(row[0]) if row else 0
@@ -397,17 +406,36 @@ async def search_items_by_category(
     if not normalized:
         return []
     offset = (page - 1) * limit
+    param = f"%{normalized}%"
     async with connect(resolved) as conn:
         cur = await conn.execute(
             """
             SELECT id, category_id, title, type, telegram_message_id, url, description,
                    video_id, marca, modelo, tipo, nivel, youtube_url
             FROM items
-            WHERE category_id = ? AND title LIKE ?
-            ORDER BY created_at DESC, id DESC
+            WHERE category_id = ? AND (title LIKE ? OR description LIKE ? OR marca LIKE ? OR modelo LIKE ? OR tags LIKE ?)
+            ORDER BY
+              CASE
+                WHEN LOWER(modelo) = LOWER(?) THEN 0
+                WHEN LOWER(marca) = LOWER(?) THEN 1
+                WHEN title LIKE ? THEN 2
+                ELSE 3
+              END, id DESC
             LIMIT ? OFFSET ?
             """,
-            (category_id, f"%{normalized}%", limit, offset),
+            (
+                category_id,
+                param,
+                param,
+                param,
+                param,
+                param,
+                normalized,
+                normalized,
+                param,
+                limit,
+                offset,
+            ),
         )
         rows = await cur.fetchall()
         return [Item.from_row(r) for r in rows]
@@ -420,10 +448,11 @@ async def count_search_items_by_category(
     normalized = term.strip()
     if not normalized:
         return 0
+    param = f"%{normalized}%"
     async with connect(resolved) as conn:
         cur = await conn.execute(
-            "SELECT COUNT(*) FROM items WHERE category_id = ? AND title LIKE ?",
-            (category_id, f"%{normalized}%"),
+            "SELECT COUNT(*) FROM items WHERE category_id = ? AND (title LIKE ? OR description LIKE ? OR marca LIKE ? OR modelo LIKE ? OR tags LIKE ?)",
+            (category_id, param, param, param, param, param),
         )
         row = await cur.fetchone()
         return int(row[0]) if row else 0

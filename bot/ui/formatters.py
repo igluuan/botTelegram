@@ -12,16 +12,16 @@ def truncate_text(text: str, limit: int = 60) -> str:
 
 def item_line(item: Any) -> str:
     prefix = "📎" if item.type == "file" else "🔗"
-    description = (item.description or "").strip()
-    if description:
-        snippet = truncate_text(description, 60)
-        return f"{prefix} {item.title} — {snippet}"
-    return f"{prefix} {item.title}"
+    line = f"{prefix} {item.title}"
+    if item.description and item.description.strip():
+        # Normaliza espaços na descrição
+        desc = " ".join(item.description.strip().split())
+        line += f" — {desc}"
+    return line
 
 
 def items_overview(items: list[Any]) -> list[str]:
-    return [item_line(item) for item in items]
-
+    return []  
 
 def build_item_body(item: Any) -> str:
     prefix = "📎" if item.type == "file" else "🔗"

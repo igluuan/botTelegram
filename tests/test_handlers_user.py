@@ -207,12 +207,12 @@ async def test_search_com_resultado(monkeypatch: pytest.MonkeyPatch) -> None:
 async def test_search_sem_resultado(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(user_handlers.database, "count_search_items", AsyncMock(return_value=0))
     monkeypatch.setattr(user_handlers.database, "search_items", AsyncMock(return_value=[]))
-    update = make_mock_update(user_id=1, text="/buscar X")
+    update = make_mock_update(user_id=1, text="/buscar XXX")
     msg = MagicMock()
     msg.edit_text = AsyncMock()
     update.message.reply_text = AsyncMock(return_value=msg)
     context = MagicMock()
-    context.args = ["X"]
+    context.args = ["XXX"]
     context.user_data = {}
     await user_handlers.search(update, context)
     assert "Nenhum resultado" in msg.edit_text.call_args[0][0]

@@ -19,6 +19,7 @@ async def _ensure_items_columns(conn) -> None:
         ("tipo", "TEXT"),
         ("nivel", "TEXT"),
         ("youtube_url", "TEXT"),
+        ("tags", "TEXT"),
     ]
     for name, ddl in desired:
         if name not in existing:
@@ -58,6 +59,7 @@ async def init_db(*, db_path: str | None = None) -> None:
                 tipo TEXT,
                 nivel TEXT,
                 youtube_url TEXT,
+                tags TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
 

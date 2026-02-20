@@ -57,8 +57,8 @@ def _extract_video_full_sync(video_id: str) -> dict:
     "skip_download": True,
     "extract_flat": False,
     "ignoreerrors": True,
-    "extractor_args": {"youtube": {"lang": ["pt-BR"]}},
-    "http_headers": {"Accept-Language": "pt-BR,pt;q=0.9"},
+    "extractor_args": {"youtube": {"lang": ["pt"]}},
+    "http_headers": {"Accept-Language": "pt,pt-PT;q=0.9"},
 }
     with YoutubeDL(opts) as ydl:
         info = ydl.extract_info(f"https://www.youtube.com/watch?v={v}", download=False)

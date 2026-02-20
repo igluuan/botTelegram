@@ -11,7 +11,7 @@ import httpx
 from bot.config import get_settings
 from bot.db.connection import connect
 from bot.db.schema import init_db
-from bot import database
+from bot.db import repository as database
 from bot.youtube.extractor import extrair_lista_canal_flat, extrair_video_full
 from bot.youtube.categorizer import categorizar_video, montar_description
 from bot.youtube.formatter import formatar_mensagem_canal
@@ -199,7 +199,8 @@ async def _reprocessar_itens_sem_description(*, categoria_por: str) -> tuple[int
             """
             SELECT id, url, video_id, youtube_url
             FROM items
-            WHERE type = 'link' AND (description IS NULL OR TRIM(description) = '')
+            WHERE (description IS NULL OR TRIM(description) = '')
+            OR (marca IS NULL OR marca = '')
             """
         )
         rows = await cur.fetchall()

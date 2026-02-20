@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import pytest
 
-from bot import database
+from bot.db import repository as database
+from bot.db import schema
 from bot.db.connection import connect
 
 
 @pytest.mark.asyncio
 async def test_init_db_creates_tables(temp_db_path: str) -> None:
-    await database.init_db(db_path=temp_db_path)
+    await schema.init_db(db_path=temp_db_path)
     async with connect(temp_db_path) as conn:
         cur = await conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
         tables = {r[0] for r in await cur.fetchall()}
@@ -17,13 +18,13 @@ async def test_init_db_creates_tables(temp_db_path: str) -> None:
 
 @pytest.mark.asyncio
 async def test_init_db_idempotent(temp_db_path: str) -> None:
-    await database.init_db(db_path=temp_db_path)
-    await database.init_db(db_path=temp_db_path)
+    await schema.init_db(db_path=temp_db_path)
+    await schema.init_db(db_path=temp_db_path)
 
 
 @pytest.mark.asyncio
 async def test_init_db_indexes_exist(temp_db_path: str) -> None:
-    await database.init_db(db_path=temp_db_path)
+    await schema.init_db(db_path=temp_db_path)
     async with connect(temp_db_path) as conn:
         cur = await conn.execute("SELECT name FROM sqlite_master WHERE type='index'")
         indexes = {r[0] for r in await cur.fetchall()}
@@ -33,7 +34,7 @@ async def test_init_db_indexes_exist(temp_db_path: str) -> None:
 
 @pytest.mark.asyncio
 async def test_foreign_key_cascade_delete(temp_db_path: str) -> None:
-    await database.init_db(db_path=temp_db_path)
+    await schema.init_db(db_path=temp_db_path)
     category_id = await database.create_category(
         name="Cascade", emoji="📁", db_path=temp_db_path
     )

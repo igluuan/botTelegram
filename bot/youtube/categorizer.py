@@ -3,15 +3,16 @@ from __future__ import annotations
 import json
 import logging
 import os
-import pathlib
 import re
 
+from bot.config import get_settings
 from bot.youtube.known_models import (
     lookup_brand_from_text,
     validate_model,
     _MODEL_TO_BRAND,
     _normalize_token,
 )
+from bot.youtube.unknown_tracker import registrar
 
 logger = logging.getLogger(__name__)
 
@@ -23,17 +24,6 @@ STOPWORDS = {
 }
 
 _CATEGORY_CACHE: dict[str, dict] = {}
-_UNKNOWN_LOG = pathlib.Path("unknown_models.log")
-
-
-def _registrar_modelo_desconhecido(titulo: str, marca: str, candidato: str) -> None:
-    try:
-        with _UNKNOWN_LOG.open("a", encoding="utf-8") as f:
-            f.write(f"{marca}\t{candidato}\t{titulo}\n")
-    except Exception:
-        pass
-
-
 def montar_description(dados: dict) -> str:
     equipamento = dados.get("equipamento") or dados.get("marca") or "Desconhecido"
     tipo = (dados.get("tipo") or "informativo").capitalize()
@@ -142,20 +132,27 @@ async def categorizar_video(titulo: str, descricao: str = "") -> dict:
     if cache_key in _CATEGORY_CACHE:
         return _CATEGORY_CACHE[cache_key]
 
-    if not os.getenv("ANTHROPIC_API_KEY"):
+    settings = get_settings()
+    if not settings.anthropic_api_key:
         result = _fallback_categorizar(titulo, descricao)
         _CATEGORY_CACHE[cache_key] = result
         return result
 
     try:
         from anthropic import AsyncAnthropic
-        client = AsyncAnthropic()
-    except Exception:
+        client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+    except ImportError:
+        logger.error("Biblioteca 'anthropic' não instalada.")
+        result = _fallback_categorizar(titulo, descricao)
+        _CATEGORY_CACHE[cache_key] = result
+        return result
+    except Exception as e:
+        logger.exception("Erro ao inicializar cliente Anthropic: %s", e)
         result = _fallback_categorizar(titulo, descricao)
         _CATEGORY_CACHE[cache_key] = result
         return result
 
-    model_env = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
+    model_env = settings.anthropic_model or "claude-3-haiku-20240307"
 
     sys_prompt = (
         "Você é um assistente que classifica vídeos de manutenção de impressoras. "
@@ -188,7 +185,8 @@ async def categorizar_video(titulo: str, descricao: str = "") -> dict:
             system=sys_prompt,
             messages=[{"role": "user", "content": user_prompt}],
         )
-    except Exception:
+    except Exception as e:
+        logger.error("Erro na chamada Anthropic API: %s", e)
         result = _fallback_categorizar(titulo, descricao)
         _CATEGORY_CACHE[cache_key] = result
         return result
@@ -200,7 +198,8 @@ async def categorizar_video(titulo: str, descricao: str = "") -> dict:
 
     try:
         raw = _json_from_text(text)
-    except Exception:
+    except Exception as e:
+        logger.warning("Falha ao parsear JSON do Claude: %s | Resposta: %r", e, text)
         result = _fallback_categorizar(titulo, descricao)
         _CATEGORY_CACHE[cache_key] = result
         return result
@@ -214,10 +213,10 @@ async def categorizar_video(titulo: str, descricao: str = "") -> dict:
         modelo = validate_model(modelo_raw, marca)
         if not modelo:
             logger.warning(
-                "MODELO_DESCONHECIDO | titulo=%r | marca_claude=%r | candidato=%r",
+                "MODELO_DESCONHECIDO | titulo=%r | marca=%r | candidato=%r",
                 titulo, marca, modelo_raw,
             )
-            _registrar_modelo_desconhecido(titulo, marca, modelo_raw)
+            registrar(marca, modelo_raw, titulo)
 
     # Título tem prioridade sobre retorno do Claude
     marca_titulo, modelo_titulo = lookup_brand_from_text(titulo)

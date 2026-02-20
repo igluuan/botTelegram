@@ -1,94 +1,117 @@
-# Bot Telegram de Arquivos e Links (MVP)
+# Bot Telegram de Arquivos, Links e Tutoriais (Helpdesk)
 
-Bot Telegram em Python para cadastrar arquivos e links por categoria (admin) e permitir que usuários naveguem por menus inline para receber conteúdo no chat.
+Bot Telegram em Python projetado para gerenciar uma base de conhecimento de arquivos, manuais e vídeos tutoriais. O sistema permite cadastro manual (admin), sincronização automática com canais do YouTube e navegação intuitiva para usuários finais.
 
-## Visão Geral
+## 🚀 Visão Geral
 
-- Categorias com emoji e paginação
-- Itens do tipo arquivo (armazenados em um canal privado) e link
-- Busca por título (global) e busca dentro de uma categoria
-- Favoritos por usuário e histórico de itens acessados
-- Menus inline com navegação intuitiva
+- **Organização por Categorias**: Navegação via menus inline com paginação.
+- **Sincronização com YouTube**: Importação automática de vídeos de canais ou playlists, com extração de metadados.
+- **Categorização Inteligente**: Uso da API Anthropic (Claude) para classificar automaticamente vídeos por **Marca**, **Modelo**, **Tipo de Problema** e **Nível de Dificuldade**.
+- **Busca Poderosa**: Pesquisa global por termos ou filtrada por categoria.
+- **Favoritos e Histórico**: Acesso rápido aos itens mais utilizados pelos usuários.
+- **Armazenamento Seguro**: Arquivos físicos (PDFs, firmwares) são armazenados em um canal privado do Telegram.
 
-## Requisitos
+## 📋 Requisitos
 
 - Python 3.11+
-- Um bot criado via BotFather
-- Um canal privado do Telegram para armazenamento (o bot precisa estar como admin no canal)
+- FFmpeg (necessário para o `yt-dlp` processar metadados de vídeos)
+- Token de Bot do Telegram
+- Chave de API da Anthropic (opcional, para categorização automática)
 
-## Configuração
+## ⚙️ Configuração
 
 1. Crie um arquivo `.env` na raiz (use `.env.example` como base):
 
-- `BOT_TOKEN`: token do BotFather
-- `ADMIN_ID`: seu `user_id` no Telegram
-- `STORAGE_CHANNEL_ID`: id do canal privado (ex.: `-100...`)
-- `DATABASE_PATH`: caminho do SQLite (padrão `bot.db`)
-- `YOUTUBE_API_KEY`: chave da API do YouTube
-- `YOUTUBE_CHANNEL_ID`: id do canal do YouTube
-- `ANTHROPIC_API_KEY`: chave da API do Anthropic
+```env
+# Telegram
+BOT_TOKEN=123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11
+ADMIN_ID=123456789
+STORAGE_CHANNEL_ID=-1001234567890
 
-2. Instale dependências:
+# Banco de Dados
+DATABASE_PATH=bot.db
+
+# Integrações Opcionais
+ANTHROPIC_API_KEY=sk-ant-... (Para categorização via IA)
+```
+
+2. Instale as dependências:
 
 ```bash
 python -m pip install -r requirements.txt
 ```
 
-3. Inicialize e rode o bot:
+3. Inicialize o bot:
 
 ```bash
 python -m bot.main
 ```
 
-Observações:
-- O bot exige BOT_TOKEN, ADMIN_ID e STORAGE_CHANNEL_ID configurados (validação em runtime).
-- O banco SQLite é criado/atualizado automaticamente no primeiro start.
-- Logs são gravados em `bot.log` com rotação.
+## 🛠️ Ferramentas e Scripts
 
-## Uso (Comandos)
+O projeto inclui scripts utilitários para manutenção e importação de conteúdo. Execute-os a partir da raiz do projeto:
 
-### Usuários
-
-- `/start`: abre o menu principal
-- Navegue por categorias e itens via botões
-- `/buscar <termo>`: busca por título
-- `/buscarcat <categoria_id> <termo>`: busca por título dentro de uma categoria
-
-### Administrador
-
-- `/admin`: painel com resumo dos comandos
-- `/addcategoria <emoji> <nome>`: cria categoria (emoji opcional; padrão 📁)
-- `/addlink <categoria_id> <título> <url> [descrição]`: cadastra um link
-- `/addfile <categoria_id> <título> [descrição]`: inicia cadastro de arquivo
-  - Após esse comando, envie o arquivo no chat com o bot; ele será encaminhado para o canal definido em `STORAGE_CHANNEL_ID` e vinculado ao item
-- `/listar`: lista categorias com contagem de itens
-- `/deletar <item_id>`: remove um item (arquivo ou link)
-- `/deletarcategoria <categoria_id>`: remove uma categoria (cascata em itens)
-
-## Armazenamento de Arquivos
-
-- O bot encaminha a mensagem com o arquivo para o canal privado (`STORAGE_CHANNEL_ID`), guardando `telegram_message_id` para reuso.
-- Certifique-se de adicionar o bot como administrador do canal e permitir postar mensagens.
-- Ao usuário solicitar um item do tipo arquivo, o bot faz forward a partir do canal de storage.
-
-## Banco de Dados
-
-- SQLite via `aiosqlite`, arquivo definido por `DATABASE_PATH` (padrão `bot.db`)
-- Tabelas: `categories`, `items` (file|link), `favorites`, `history`
-- Índices para busca por título e navegação paginada
-  
-O schema é inicializado automaticamente em runtime.
-
-## Testes
-
-Instale dependências de desenvolvimento:
+### 1. Sincronização com YouTube
+Importa vídeos de um canal ou playlist, categoriza usando IA e publica no canal de storage.
 
 ```bash
-python -m pip install -r requirements-dev.txt
+# Sincronizar um canal/playlist específico
+python -m bot.scripts.sync_youtube https://www.youtube.com/@CanalExemplo
+
+# Opções úteis:
+# --force-update: Atualiza metadados de vídeos já importados
+# --limit 10: Importa apenas os 10 vídeos mais recentes
+# --dry-run: Simula a importação sem gravar no banco
 ```
 
-Execute os testes:
+### 2. Limpeza de Duplicatas
+Remove vídeos duplicados do banco de dados, mantendo apenas o registro mais antigo.
 
 ```bash
+python -m bot.scripts.cleanup_youtube_duplicates --apply
+```
+
+### 3. Padronização de Modelos
+Aplica regras de Regex para padronizar nomes de modelos (ex: "L6902" -> "MFC-L6902DW") e marcas.
+
+```bash
+python -m bot.scripts.fix_modelos
+```
+
+## 📱 Uso do Bot
+
+### Comandos de Usuário
+- `/start`: Abre o menu principal de navegação.
+- `/buscar <termo>`: Pesquisa itens em toda a base.
+- `/buscarcat <cat_id> <termo>`: Pesquisa dentro de uma categoria específica.
+- Navegação via botões: Explorar categorias, ver itens recentes e favoritos.
+
+### Comandos de Administrador
+- `/admin`: Painel de controle.
+- `/addcategoria <emoji> <nome>`: Cria uma nova categoria manualmente.
+- `/addlink <cat_id> <título> <url>`: Adiciona um link externo.
+- `/addfile`: Inicia o fluxo de upload de arquivo (PDF/Zip) para o canal de storage.
+- `/deletar <id>`: Remove um item.
+- `/listar`: Exibe estatísticas das categorias.
+
+## 💾 Estrutura de Dados
+
+O banco de dados SQLite (`bot.db`) gerencia:
+- **Categories**: Agrupamentos lógicos (ex: Brother, Kyocera, Samsung).
+- **Items**: Conteúdo real, podendo ser:
+  - `file`: Documento armazenado no Telegram.
+  - `link`: URL externa ou vídeo do YouTube.
+  - Metadados ricos: `marca`, `modelo`, `video_id`, `description`.
+- **User Data**: Favoritos e histórico de acesso.
+
+## 🧪 Testes
+
+Para executar a suíte de testes:
+
+```bash
+# Instalar dependências de dev
+python -m pip install -r requirements-dev.txt
+
+# Rodar testes
 python -m pytest
 ```

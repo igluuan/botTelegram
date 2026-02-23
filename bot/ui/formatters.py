@@ -12,21 +12,33 @@ def truncate_text(text: str, limit: int = 60) -> str:
 
 def item_line(item: Any) -> str:
     prefix = "📎" if item.type == "file" else "🔗"
-    line = f"{prefix} {item.title}"
-    if item.description and item.description.strip():
-        # Normaliza espaços na descrição
-        desc = " ".join(item.description.strip().split())
-        line += f" — {desc}"
-    return line
+    marca = (getattr(item, "marca", "") or "").strip()
+    modelo = (getattr(item, "modelo", "") or "").strip()
+    badge = f"{marca} {modelo}".strip()
+    if badge:
+        return f"{prefix} {badge} · {item.title}"
+    return f"{prefix} {item.title}"
 
 
 def items_overview(items: list[Any]) -> list[str]:
-    return []  
+    lines = []
+    for item in items:
+        lines.append(item_line(item))
+    return lines
+
 
 def build_item_body(item: Any) -> str:
-    prefix = "📎" if item.type == "file" else "🔗"
-    description = (item.description or "").strip()
+    prefix = "▶️" if item.type == "file" else "🔗"
+    marca = (getattr(item, "marca", "") or "").strip()
+    modelo = (getattr(item, "modelo", "") or "").strip()
+    tipo = (getattr(item, "tipo", "") or "").strip().capitalize()
+    
+    badges = " · ".join(filter(None, [marca, modelo, tipo]))
     body = f"{prefix} <b>{item.title}</b>"
+    if badges:
+        body += f"\n\n🏷️ {badges}"
+    
+    description = (item.description or "").strip()
     if description:
-        body += f"\n\n{description}"
+        body += f"\n{'─' * 20}\n{description}"
     return body

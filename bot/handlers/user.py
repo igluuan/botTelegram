@@ -15,6 +15,8 @@ from bot.ui.keyboards import (
     item_actions_menu,
     main_menu,
     paginated_items_menu,
+    marcas_menu,
+    subcategorias_menu,
 )
 from bot.ui.formatters import build_item_body, items_overview
 from bot.utils import parse_positive_int
@@ -25,6 +27,23 @@ logger = logging.getLogger(__name__)
 WAITING_SEARCH_TERM = 1
 
 
+async def ajuda(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    texto = (
+        "📖 *Como usar o bot*\n\n"
+        "🔍 *Busca direta:* digite qualquer termo\n"
+        "   _Ex: toner, rede, L6902_\n\n"
+        "📂 *Navegar por marca:* botão 'Categorias'\n\n"
+        "⭐ *Favoritos:* salve vídeos para acessar rápido\n\n"
+        "🕘 *Recentes:* últimos vídeos que você abriu\n\n"
+        "📌 *Comandos:*\n"
+        "/buscar <termo> — busca global\n"
+        "/ajuda — este menu\n"
+        "/limpar — limpa o contexto de navegação"
+    )
+    if update.message:
+        await update.message.reply_text(texto, parse_mode=ParseMode.MARKDOWN)
+
+
 async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     context.user_data.pop("last_back_data", None)
     context.user_data.pop("search_context", None)
@@ -32,18 +51,22 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     context.user_data.pop("pending_category_search_name", None)
 
     text = (
-        "🤖 Bem-vindo!\n\n"
-        "Use os botões abaixo para navegar pelas categorias.\n"
-        "Para buscar por título: /buscar <termo>\n"
-        "Para buscar por categoria: /buscarcat <categoria_id> <termo>"
+        "👋 Olá! Sou o assistente de vídeos técnicos.\n\n"
+        "🔍 *Busca rápida:* digite qualquer termo diretamente\n"
+        "📂 *Navegar:* use os botões abaixo\n\n"
+        "_Ex: brother, toner, rede, L6902_"
     )
 
     if update.callback_query:
         await update.callback_query.answer()
-        await update.callback_query.edit_message_text(text, reply_markup=main_menu())
+        await update.callback_query.edit_message_text(
+            text, reply_markup=main_menu(), parse_mode=ParseMode.MARKDOWN
+        )
         return
     if update.message:
-        await update.message.reply_text(text, reply_markup=main_menu())
+        await update.message.reply_text(
+            text, reply_markup=main_menu(), parse_mode=ParseMode.MARKDOWN
+        )
 
 
 async def limpar_contexto(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -103,11 +126,142 @@ async def show_categories(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     )
 
 
+async def show_marcas(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not update.callback_query:
+        return
+    await update.callback_query.answer(text="⏳ Carregando...")
+    marcas = await database.list_marcas()
+    if not marcas:
+        await update.callback_query.edit_message_text(
+            "📭 Nenhuma marca encontrada.", reply_markup=main_menu()
+        )
+        return
+
+    await update.callback_query.edit_message_text(
+        "🏷️ Selecione a marca:",
+        reply_markup=marcas_menu(marcas),
+    )
+
+
+async def show_subcategorias(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not update.callback_query:
+        return
+    data = update.callback_query.data or ""
+    # data format: "marca_Brother"
+    try:
+        marca = data.split("_", 1)[1]
+    except IndexError:
+        await update.callback_query.answer(text="Erro ao processar marca.")
+        return
+
+    await update.callback_query.answer(text="⏳ Carregando...")
+    context.user_data["marca_selecionada"] = marca
+
+    subcats = await database.list_subcategorias_by_marca(marca)
+    if not subcats:
+        await update.callback_query.edit_message_text(
+            f"📭 Nenhuma subcategoria encontrada para {marca}.",
+            reply_markup=marcas_menu(await database.list_marcas()),
+        )
+        return
+
+    await update.callback_query.edit_message_text(
+        f"📂 {marca} — Selecione o assunto:",
+        reply_markup=subcategorias_menu(marca, subcats),
+    )
+
+
+def _parse_subcat_callback(data: str) -> tuple[str, str, int]:
+    # data: "subcat|Marca|Subcategoria" ou "subcat|Marca|Subcategoria_2"
+    parts = data.split("|")
+    if len(parts) < 3:
+        raise ValueError("Dados inválidos")
+
+    marca = parts[1]
+    raw_sub = parts[2]
+    page = 1
+
+    # Verifica se termina com _\d+
+    match = re.search(r"^(.*)_(\d+)$", raw_sub)
+    if match:
+        subcategoria = match.group(1)
+        page = int(match.group(2))
+    else:
+        subcategoria = raw_sub
+
+    return marca, subcategoria, page
+
+
+async def show_items_by_subcat(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    if not update.callback_query:
+        return
+    data = update.callback_query.data or ""
+    
+    try:
+        marca, subcategoria, page = _parse_subcat_callback(data)
+    except ValueError:
+        await update.callback_query.answer(text="Dados inválidos.")
+        return
+
+    await update.callback_query.answer(text="🔎 Buscando vídeos...")
+
+    limit = 5
+    try:
+        total_count = await database.count_items_by_marca_subcategoria(
+            marca=marca, subcategoria=subcategoria
+        )
+        total_pages = math.ceil(total_count / limit)
+        if page > total_pages and total_pages > 0:
+            page = total_pages
+
+        items = await database.list_items_by_marca_subcategoria(
+            marca=marca, subcategoria=subcategoria, page=page, limit=limit
+        )
+    except Exception:
+        await update.callback_query.edit_message_text(
+            "⚠️ Não foi possível carregar os itens agora."
+        )
+        return
+
+    if not items and page == 1:
+        await update.callback_query.edit_message_text(
+            f"📭 Nenhum item encontrado em {marca} > {subcategoria}.",
+            reply_markup=subcategorias_menu(
+                marca, await database.list_subcategorias_by_marca(marca)
+            ),
+        )
+        return
+
+    total_pages_display = max(total_pages, 1)
+    context.user_data["last_back_data"] = f"subcat|{marca}|{subcategoria}_{page}"
+
+    lines = [f"📂 {marca} › {subcategoria}", f"Itens: {total_count}", ""]
+    lines.extend(items_overview(items))
+    lines.extend(["", "Selecione um item:"])
+
+    # Ajuste para prefixo de paginação: deve ser compatível com o parser acima
+    # "subcat|{marca}|{subcategoria}" vai gerar "_page" no final
+    prefix = f"subcat|{marca}|{subcategoria}"
+
+    await update.callback_query.edit_message_text(
+        "\n".join(lines),
+        reply_markup=paginated_items_menu(
+            items,
+            page=page,
+            total_pages=total_pages_display,
+            back_data=f"marca_{marca}",
+            page_callback_prefix=prefix,
+        ),
+    )
+
+
 async def show_items(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not update.callback_query:
         return
     data = update.callback_query.data or ""
-    await update.callback_query.answer(text="⏳ Carregando...")
+    await update.callback_query.answer(text="📂 Abrindo categoria...")
 
     parts = data.split("_")
     category_id_str = parts[1] if len(parts) > 1 else "0"
@@ -168,7 +322,7 @@ async def show_items(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
 async def send_item(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not update.callback_query:
         return
-    await update.callback_query.answer(text="⏳ Carregando...")
+    await update.callback_query.answer(text="▶️ Carregando vídeo...")
     data = update.callback_query.data or ""
     try:
         item_id = parse_positive_int(data.split("_")[-1], field_name="item_id")
@@ -276,11 +430,16 @@ async def _render_search_results_message(
         )
 
     total_pages_display = max(total_pages, 1)
-    lines = [f"🔎 {term.capitalize()}", f"Resultados: {total_count}"]
+    lines = [f"🔎 {term}", f"Resultados: {total_count}"]
     if total_pages_display > 1:
         lines.append(f"Página: {page}/{total_pages_display}")
+    
     if not items:
-        lines.append("📭 Nenhum resultado encontrado.")
+        lines.append(f"\n📭 Nenhum vídeo encontrado para *{term}*.\n")
+        lines.append("💡 Tente buscar por:")
+        lines.append("• Marca: brother, kyocera, epson")
+        lines.append("• Modelo: L6902, MA4000, AM-C5000")
+        lines.append("• Assunto: toner, rede, firmware")
 
     await edit_message(
         "\n".join(lines),
@@ -291,6 +450,7 @@ async def _render_search_results_message(
             back_data=back_data,
             page_callback_prefix="buscar",
         ),
+        parse_mode=ParseMode.MARKDOWN if not items else None,
     )
 
 
@@ -302,11 +462,18 @@ async def handle_free_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         return
 
     if len(term) < 3:
-        await update.message.reply_text("🔍 Digite ao menos 3 caracteres.")
+        texto = (
+            "🔍 *O que você quer buscar?*\n\n"
+            "Sugestões populares:\n"
+            "• toner · rede · firmware\n"
+            "• brother · kyocera · epson\n\n"
+            "_Digite o termo diretamente._"
+        )
+        await update.message.reply_text(texto, parse_mode=ParseMode.MARKDOWN)
         return
 
     # Normaliza: "5912 dw" → "5912dw", "HL-L5912" → "hll5912"
-    term_norm = re.sub(r"[\s\-]", "", term).lower()
+    term_norm = re.sub(r"[\s\-]+", " ", term).strip().lower()
 
     msg = await update.message.reply_text("🔎 Buscando...")
     context.user_data["search_context"] = {"term": term_norm, "category_id": None}
@@ -328,7 +495,14 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         return
     term = " ".join(context.args or []).strip()
     if not term:
-        await update.message.reply_text("🔍 Uso: /buscar <termo>")
+        texto = (
+            "🔍 *O que você quer buscar?*\n\n"
+            "Sugestões populares:\n"
+            "• toner · rede · firmware\n"
+            "• brother · kyocera · epson\n\n"
+            "_Digite o termo diretamente._"
+        )
+        await update.message.reply_text(texto, parse_mode=ParseMode.MARKDOWN)
         return
 
     if len(term) < 3:

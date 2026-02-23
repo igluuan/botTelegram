@@ -15,6 +15,7 @@ from bot.db import repository as database
 from bot.youtube.extractor import extrair_lista_canal_flat, extrair_video_full
 from bot.youtube.categorizer import categorizar_video, montar_description
 from bot.youtube.formatter import formatar_mensagem_canal
+from bot.youtube.subcategories import detectar_subcategoria
 
 
 _SEM = asyncio.Semaphore(5)

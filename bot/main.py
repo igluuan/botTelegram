@@ -42,10 +42,14 @@ from bot.handlers.user import (
     show_favorites,
     show_items,
     show_main_menu,
+    show_marcas,
     show_recentes,
+    show_subcategorias,
+    show_items_by_subcat,
     start_category_search,
     toggle_favorite,
     WAITING_SEARCH_TERM,
+    ajuda,
 )
 
 
@@ -82,6 +86,7 @@ def build_app(*, settings) -> Application:
 
     app.add_handler(CommandHandler("start", show_main_menu))
     app.add_handler(CommandHandler("limpar", limpar_contexto))
+    app.add_handler(CommandHandler("ajuda", ajuda))
     app.add_handler(CommandHandler("buscar", search))
     app.add_handler(CommandHandler("buscarcat", search_by_category_command))
 
@@ -101,6 +106,9 @@ def build_app(*, settings) -> Application:
     app.add_handler(conv_search)
 
     app.add_handler(CallbackQueryHandler(show_main_menu, pattern="^back_main$"))
+    app.add_handler(CallbackQueryHandler(show_marcas, pattern="^marcas$"))
+    app.add_handler(CallbackQueryHandler(show_subcategorias, pattern="^marca_"))
+    app.add_handler(CallbackQueryHandler(show_items_by_subcat, pattern=r"^subcat\|"))
     app.add_handler(
         CallbackQueryHandler(
             show_categories, pattern=r"^(categorias|categorias_\d+|back_categories)$"

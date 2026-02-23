@@ -1,87 +1,83 @@
-# Prompt — Auditoria de Segurança e Inconsistências do Projeto
+# Plano de Correções e Melhorias (Code Review)
+
+Baseado na revisão de código realizada, este plano visa corrigir bugs de UX, melhorar a robustez do código e refatorar trechos repetitivos.
+
+## 1. Correção na Normalização da Busca (Bug/UX)
+
+**Problema:** A normalização atual `re.sub(r"[\s\-]", "", term)` remove *todos* os espaços. Busca por "toner brother" vira "tonerbrother", que não encontra "Toner Brother" no banco.
+
+**Solução:** Substituir múltiplos espaços/hífens por um único espaço.
+
+**Arquivo:** `bot/handlers/user.py`
+
+```python
+# Antes
+term_norm = re.sub(r"[\s\-]", "", term).lower()
+
+# Depois
+term_norm = re.sub(r"[\s\-]+", " ", term).strip().lower()
+```
 
 ---
 
-Você é um engenheiro de segurança sênior especializado em auditoria de código Python.
-Analise todos os arquivos do projeto e identifique **vulnerabilidades, inconsistências e riscos de vazamento de dados sensíveis**.
+## 2. Refatoração de Keyboards (DRY)
 
-## O que verificar
+**Problema:** Lógica de paginação duplicada em `categories_menu`, `items_menu` e `paginated_items_menu`.
 
-### 1. Credenciais e chaves expostas
-- Chaves de API hardcoded (`ANTHROPIC_API_KEY`, `BOT_TOKEN`, tokens Telegram)
-- Senhas ou secrets em arquivos `.py`, `.env.example`, `config.py`, comentários ou logs
-- Strings de conexão com credenciais embutidas
-- Chaves commitadas acidentalmente (verificar se `.env` está no `.gitignore`)
+**Solução:** Criar uma função auxiliar privada para gerar a linha de botões de paginação.
 
-### 2. Vazamento em logs
-- `logger.info/debug/warning` imprimindo objetos que contenham tokens, IDs de usuário ou mensagens privadas
-- F-strings em logs que expõem `settings.bot_token`, `settings.admin_id` ou similares
-- Stack traces que imprimem variáveis sensíveis
+**Arquivo:** `bot/ui/keyboards.py`
 
-### 3. Configuração e variáveis de ambiente
-- Variáveis sensíveis sem validação de presença (`if not os.getenv(...)`)
-- Fallbacks inseguros (`os.getenv("API_KEY", "default_key")`)
-- Settings carregados de forma que exponham valores ao serializar o objeto
-
-### 4. Banco de dados
-- Queries com interpolação de string em vez de parâmetros (`f"WHERE id = {id}"` → SQL injection)
-- Dados sensíveis de usuários (IDs, histórico) sem controle de acesso
-- Ausência de validação de `user_id` antes de operações no banco
-
-### 5. Handlers do Telegram
-- Ausência de verificação `is_admin` em comandos privilegiados
-- `update.effective_user` usado sem verificação de `None`
-- `callback_query.data` processado sem sanitização
-
-### 6. Requisições HTTP externas
-- Tokens enviados em headers sem uso de HTTPS
-- Ausência de timeout em chamadas `httpx`/`requests`
-- Respostas de API logadas sem filtrar campos sensíveis
-
-### 7. Arquivos e paths
-- Paths construídos com input do usuário sem sanitização (`Path(user_input)`)
-- Arquivos temporários criados sem controle de permissão
-- `unknown_models.log` ou outros logs gravados em path público
+```python
+def _build_pagination_row(page: int, total_pages: int, callback_prefix: str) -> list[InlineKeyboardButton]:
+    row = []
+    if page > 1:
+        row.append(InlineKeyboardButton("⬅️ Anterior", callback_data=f"{callback_prefix}_{page - 1}"))
+    
+    if total_pages > 1:
+        row.append(InlineKeyboardButton(f"{page}/{total_pages}", callback_data="noop"))
+        
+    if page < total_pages:
+        row.append(InlineKeyboardButton("Próxima ➡️", callback_data=f"{callback_prefix}_{page + 1}"))
+    return row
+```
 
 ---
 
-## Formato de resposta esperado
+## 3. Robustez no Parsing de Callback (Bug Potencial)
 
-Para cada problema encontrado, retorne:
+**Problema:** Em `show_items_by_subcat`, a separação `raw_sub.rsplit("_", 1)` assume que qualquer underscore final é paginação. Se a subcategoria for "wi_fi", isso pode falhar.
 
+**Solução:** Usar um separador mais explícito ou validar se o sufixo é realmente um número.
+
+**Arquivo:** `bot/handlers/user.py`
+
+```python
+def _parse_subcat_callback(data: str) -> tuple[str, str, int]:
+    # data: "subcat|Marca|Subcategoria" ou "subcat|Marca|Subcategoria_2"
+    parts = data.split("|")
+    if len(parts) < 3:
+        raise ValueError("Dados inválidos")
+    
+    marca = parts[1]
+    raw_sub = parts[2]
+    page = 1
+    
+    # Verifica se termina com _\d+
+    match = re.search(r"^(.*)_(\d+)$", raw_sub)
+    if match:
+        subcategoria = match.group(1)
+        page = int(match.group(2))
+    else:
+        subcategoria = raw_sub
+        
+    return marca, subcategoria, page
 ```
-[SEVERIDADE] Arquivo: caminho/do/arquivo.py — Linha X
-Problema: descrição clara do risco
-Correção: como resolver
-```
-
-Severidades: `CRÍTICO` | `ALTO` | `MÉDIO` | `BAIXO`
 
 ---
 
-## Após o diagnóstico
+## 4. Ordem de Execução
 
-- Aplique as correções diretamente nos arquivos afetados
-- Para cada correção, mostre o diff (antes/depois)
-- Gere um `.gitignore` adequado se não existir ou estiver incompleto
-- Verifique se `.env` está listado no `.gitignore`
-- Sugira uso de `python-dotenv` com validação obrigatória de variáveis críticas se não implementado
-
----
-
-## Arquivos prioritários para análise
-
-```
-bot/config.py
-bot/main.py
-bot/handlers/admin.py
-bot/handlers/user.py
-bot/youtube/categorizer.py
-bot/youtube/extractor.py
-bot/scripts/sync_youtube.py
-bot/db/connection.py
-.env.example
-.gitignore
-```
-
-Analise todos os arquivos disponíveis, não apenas os listados acima.
+1.  [ ] **Refatorar Keyboards**: Implementar `_build_pagination_row` e usar nas funções de menu.
+2.  [ ] **Corrigir Handler de Busca**: Ajustar regex de normalização.
+3.  [ ] **Refatorar Handler de Subcategoria**: Extrair parsing para função auxiliar e corrigir lógica de underscore.

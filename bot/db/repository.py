@@ -149,6 +149,7 @@ async def create_link_item(
     tipo: str | None = None,
     nivel: str | None = None,
     youtube_url: str | None = None,
+    subcategoria: str | None = None,
     db_path: str | None = None,
 ) -> int:
     resolved = _resolve_db_path(db_path)
@@ -166,9 +167,10 @@ async def create_link_item(
                 modelo,
                 tipo,
                 nivel,
-                youtube_url
+                youtube_url,
+                subcategoria
             )
-            VALUES (?, ?, 'link', ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, 'link', ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 category_id,
@@ -181,6 +183,7 @@ async def create_link_item(
                 (tipo or None),
                 (nivel or None),
                 (youtube_url.strip() if youtube_url else None),
+                (subcategoria or None),
             ),
         )
         await conn.commit()
@@ -199,6 +202,7 @@ async def create_file_item(
     tipo: str | None = None,
     nivel: str | None = None,
     youtube_url: str | None = None,
+    subcategoria: str | None = None,
     db_path: str | None = None,
 ) -> int:
     resolved = _resolve_db_path(db_path)
@@ -216,9 +220,10 @@ async def create_file_item(
                 modelo,
                 tipo,
                 nivel,
-                youtube_url
+                youtube_url,
+                subcategoria
             )
-            VALUES (?, ?, 'file', ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, 'file', ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 category_id,
@@ -231,6 +236,7 @@ async def create_file_item(
                 (tipo or None),
                 (nivel or None),
                 (youtube_url.strip() if youtube_url else None),
+                (subcategoria or None),
             ),
         )
         await conn.commit()
@@ -259,7 +265,7 @@ async def list_items_by_category(
         cur = await conn.execute(
             """
             SELECT id, category_id, title, type, telegram_message_id, url, description,
-                   video_id, marca, modelo, tipo, nivel, youtube_url
+                   video_id, marca, modelo, tipo, nivel, youtube_url, subcategoria
             FROM items
             WHERE category_id = ?
             ORDER BY created_at DESC, id DESC
@@ -289,7 +295,7 @@ async def get_item(*, item_id: int, db_path: str | None = None) -> Item | None:
         cur = await conn.execute(
             """
             SELECT id, category_id, title, type, telegram_message_id, url, description,
-                   video_id, marca, modelo, tipo, nivel, youtube_url
+                   video_id, marca, modelo, tipo, nivel, youtube_url, subcategoria
             FROM items
             WHERE id = ?
             """,
@@ -308,7 +314,7 @@ async def get_item_by_url(*, url: str, db_path: str | None = None) -> Item | Non
         cur = await conn.execute(
             """
             SELECT id, category_id, title, type, telegram_message_id, url, description,
-                   video_id, marca, modelo, tipo, nivel, youtube_url
+                   video_id, marca, modelo, tipo, nivel, youtube_url, subcategoria
             FROM items
             WHERE url = ?
             """,
@@ -329,7 +335,7 @@ async def get_item_by_video_id(
         cur = await conn.execute(
             """
             SELECT id, category_id, title, type, telegram_message_id, url, description,
-                   video_id, marca, modelo, tipo, nivel, youtube_url
+                   video_id, marca, modelo, tipo, nivel, youtube_url, subcategoria
             FROM items
             WHERE video_id = ?
             """,
@@ -360,7 +366,7 @@ async def search_items(
         cur = await conn.execute(
             """
             SELECT id, category_id, title, type, telegram_message_id, url, description,
-                   video_id, marca, modelo, tipo, nivel, youtube_url
+                   video_id, marca, modelo, tipo, nivel, youtube_url, subcategoria
             FROM items
             WHERE (title LIKE ? OR description LIKE ? OR marca LIKE ? OR modelo LIKE ? OR tags LIKE ?)
             ORDER BY
@@ -411,7 +417,7 @@ async def search_items_by_category(
         cur = await conn.execute(
             """
             SELECT id, category_id, title, type, telegram_message_id, url, description,
-                   video_id, marca, modelo, tipo, nivel, youtube_url
+                   video_id, marca, modelo, tipo, nivel, youtube_url, subcategoria
             FROM items
             WHERE category_id = ? AND (title LIKE ? OR description LIKE ? OR marca LIKE ? OR modelo LIKE ? OR tags LIKE ?)
             ORDER BY
@@ -504,7 +510,7 @@ async def list_favorites(
         cur = await conn.execute(
             """
             SELECT i.id, i.category_id, i.title, i.type, i.telegram_message_id, i.url, i.description,
-                   i.video_id, i.marca, i.modelo, i.tipo, i.nivel, i.youtube_url
+                   i.video_id, i.marca, i.modelo, i.tipo, i.nivel, i.youtube_url, i.subcategoria
             FROM favorites f
             JOIN items i ON i.id = f.item_id
             WHERE f.user_id = ?
@@ -559,7 +565,7 @@ async def list_history(
         cur = await conn.execute(
             """
             SELECT i.id, i.category_id, i.title, i.type, i.telegram_message_id, i.url, i.description,
-                   i.video_id, i.marca, i.modelo, i.tipo, i.nivel, i.youtube_url
+                   i.video_id, i.marca, i.modelo, i.tipo, i.nivel, i.youtube_url, i.subcategoria
             FROM history h
             JOIN items i ON i.id = h.item_id
             WHERE h.user_id = ?
@@ -589,3 +595,76 @@ def format_categories_list(categories_with_counts: Sequence[tuple[Category, int]
     for cat, count in categories_with_counts:
         lines.append(f"- {cat.emoji} {cat.name} (id {cat.id}) — {count} item(ns)")
     return "\n".join(lines)
+
+
+async def list_marcas(db_path: str | None = None) -> list[str]:
+    resolved = _resolve_db_path(db_path)
+    async with connect(resolved) as conn:
+        cur = await conn.execute(
+            """
+            SELECT DISTINCT marca FROM items
+            WHERE marca IS NOT NULL AND TRIM(marca) != ''
+            ORDER BY marca COLLATE NOCASE
+            """
+        )
+        rows = await cur.fetchall()
+        return [str(r["marca"]) for r in rows]
+
+
+async def list_subcategorias_by_marca(
+    marca: str, db_path: str | None = None
+) -> list[str]:
+    resolved = _resolve_db_path(db_path)
+    async with connect(resolved) as conn:
+        cur = await conn.execute(
+            """
+            SELECT DISTINCT subcategoria FROM items
+            WHERE marca = ? AND subcategoria IS NOT NULL AND TRIM(subcategoria) != ''
+            ORDER BY subcategoria COLLATE NOCASE
+            """,
+            (marca,),
+        )
+        rows = await cur.fetchall()
+        return [str(r["subcategoria"]) for r in rows]
+
+
+async def list_items_by_marca_subcategoria(
+    *,
+    marca: str,
+    subcategoria: str,
+    page: int = 1,
+    limit: int = 10,
+    db_path: str | None = None,
+) -> list[Item]:
+    resolved = _resolve_db_path(db_path)
+    offset = (page - 1) * limit
+    async with connect(resolved) as conn:
+        cur = await conn.execute(
+            """
+            SELECT id, category_id, title, type, telegram_message_id, url, description,
+                   video_id, marca, modelo, tipo, nivel, youtube_url, subcategoria
+            FROM items
+            WHERE marca = ? AND subcategoria = ?
+            ORDER BY title COLLATE NOCASE
+            LIMIT ? OFFSET ?
+            """,
+            (marca, subcategoria, limit, offset),
+        )
+        rows = await cur.fetchall()
+        return [Item.from_row(r) for r in rows]
+
+
+async def count_items_by_marca_subcategoria(
+    *, marca: str, subcategoria: str, db_path: str | None = None
+) -> int:
+    resolved = _resolve_db_path(db_path)
+    async with connect(resolved) as conn:
+        cur = await conn.execute(
+            """
+            SELECT COUNT(*) FROM items
+            WHERE marca = ? AND subcategoria = ?
+            """,
+            (marca, subcategoria),
+        )
+        row = await cur.fetchone()
+        return int(row[0]) if row else 0

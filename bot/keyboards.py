@@ -5,5 +5,7 @@ from bot.ui.keyboards import (
     item_actions_menu,
     items_menu,
     main_menu,
+    marcas_menu,
     paginated_items_menu,
+    subcategorias_menu,
 )

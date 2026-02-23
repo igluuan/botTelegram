@@ -8,13 +8,60 @@ from bot.models import Category, Item
 def main_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
-            [InlineKeyboardButton("📂 Ver Categorias", callback_data="categorias_1")],
+            [InlineKeyboardButton("📂 Categorias", callback_data="marcas")],
             [
                 InlineKeyboardButton("⭐ Favoritos", callback_data="favoritos_1"),
                 InlineKeyboardButton("🕘 Recentes", callback_data="recentes_1"),
             ],
         ]
     )
+
+
+def marcas_menu(marcas: list[str]) -> InlineKeyboardMarkup:
+    rows = []
+    current_row = []
+    for m in marcas:
+        current_row.append(InlineKeyboardButton(m, callback_data=f"marca_{m}"))
+        if len(current_row) == 2:
+            rows.append(current_row)
+            current_row = []
+    if current_row:
+        rows.append(current_row)
+
+    rows.append([InlineKeyboardButton("🔙 Voltar", callback_data="back_main")])
+    return InlineKeyboardMarkup(rows)
+
+
+def subcategorias_menu(marca: str, subcategorias: list[str]) -> InlineKeyboardMarkup:
+    rows = [
+        [InlineKeyboardButton(s, callback_data=f"subcat|{marca}|{s}")]
+        for s in subcategorias
+    ]
+    rows.append([InlineKeyboardButton("🔙 Voltar", callback_data="marcas")])
+    return InlineKeyboardMarkup(rows)
+
+
+def _build_pagination_row(
+    page: int, total_pages: int, callback_prefix: str
+) -> list[InlineKeyboardButton]:
+    row = []
+    if page > 1:
+        row.append(
+            InlineKeyboardButton(
+                "⬅️ Anterior", callback_data=f"{callback_prefix}_{page - 1}"
+            )
+        )
+
+    if total_pages > 1:
+        row.append(InlineKeyboardButton(f"{page}/{total_pages}", callback_data="noop"))
+
+    if page < total_pages:
+        row.append(
+            InlineKeyboardButton(
+                "Próxima ➡️", callback_data=f"{callback_prefix}_{page + 1}"
+            )
+        )
+    return row
 
 
 def categories_menu(
@@ -31,22 +78,7 @@ def categories_menu(
             ]
         )
 
-    pag_row = []
-    if page > 1:
-        pag_row.append(
-            InlineKeyboardButton("⬅️", callback_data=f"categorias_{page - 1}")
-        )
-
-    if total_pages > 1:
-        pag_row.append(
-            InlineKeyboardButton(f"{page}/{total_pages}", callback_data="noop")
-        )
-
-    if page < total_pages:
-        pag_row.append(
-            InlineKeyboardButton("➡️", callback_data=f"categorias_{page + 1}")
-        )
-
+    pag_row = _build_pagination_row(page, total_pages, "categorias")
     if pag_row:
         rows.append(pag_row)
 
@@ -68,22 +100,7 @@ def items_menu(
             ]
         )
 
-    pag_row = []
-    if page > 1:
-        pag_row.append(
-            InlineKeyboardButton("⬅️", callback_data=f"cat_{category_id}_{page - 1}")
-        )
-
-    if total_pages > 1:
-        pag_row.append(
-            InlineKeyboardButton(f"{page}/{total_pages}", callback_data="noop")
-        )
-
-    if page < total_pages:
-        pag_row.append(
-            InlineKeyboardButton("➡️", callback_data=f"cat_{category_id}_{page + 1}")
-        )
-
+    pag_row = _build_pagination_row(page, total_pages, f"cat_{category_id}")
     if pag_row:
         rows.append(pag_row)
 
@@ -117,23 +134,7 @@ def paginated_items_menu(
             ]
         )
 
-    pag_row = []
-    if page > 1:
-        pag_row.append(
-            InlineKeyboardButton(
-                "⬅️", callback_data=f"{page_callback_prefix}_{page - 1}"
-            )
-        )
-    if total_pages > 1:
-        pag_row.append(
-            InlineKeyboardButton(f"{page}/{total_pages}", callback_data="noop")
-        )
-    if page < total_pages:
-        pag_row.append(
-            InlineKeyboardButton(
-                "➡️", callback_data=f"{page_callback_prefix}_{page + 1}"
-            )
-        )
+    pag_row = _build_pagination_row(page, total_pages, page_callback_prefix)
     if pag_row:
         rows.append(pag_row)
 
@@ -151,8 +152,8 @@ def item_actions_menu(
     rows: list[list[InlineKeyboardButton]] = []
     if url:
         rows.append([InlineKeyboardButton("🔗 Abrir Link", url=url)])
-    fav_label = "⭐ Remover dos favoritos" if is_favorite else "⭐ Favoritar"
+    fav_label = "⭐ Remover dos favoritos" if is_favorite else "⭐ Salvar nos favoritos"
     fav_action = "unfav" if is_favorite else "fav"
     rows.append([InlineKeyboardButton(fav_label, callback_data=f"{fav_action}_{item_id}")])
-    rows.append([InlineKeyboardButton("⬅️ Voltar", callback_data=back_data)])
+    rows.append([InlineKeyboardButton("🔙 Voltar aos resultados", callback_data=back_data)])
     return InlineKeyboardMarkup(rows)

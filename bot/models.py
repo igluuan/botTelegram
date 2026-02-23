@@ -35,9 +35,15 @@ class Item:
     tipo: str | None = None
     nivel: str | None = None
     youtube_url: str | None = None
+    subcategoria: str | None = None
 
     @staticmethod
     def from_row(row: aiosqlite.Row) -> "Item":
+        # verifica se a coluna subcategoria existe na row (migração)
+        sub = None
+        if "subcategoria" in row.keys():
+            sub = row["subcategoria"]
+
         return Item(
             id=int(row["id"]),
             category_id=int(row["category_id"]),
@@ -52,5 +58,6 @@ class Item:
             tipo=row["tipo"],
             nivel=row["nivel"],
             youtube_url=row["youtube_url"],
+            subcategoria=sub,
         )
 
